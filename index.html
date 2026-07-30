@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Absensi Siswa — SDI Assuryaniyah</title>
-<meta name="description" content="Aplikasi absensi siswa SDI Assuryaniyah. Guru menandai kehadiran per nama siswa, lengkap dengan rekap bulanan dan ekspor CSV/Excel.">
+<title>Absensi &amp; Jurnal — SDI Assuryaniyah</title>
+<meta name="description" content="Aplikasi absensi siswa dan jurnal harian guru SDI Assuryaniyah. Kehadiran per nama siswa, jurnal mengajar, rekap bulanan, dan ekspor CSV/Excel.">
 <meta name="theme-color" content="#0d1b4b">
 <link rel="icon" type="image/png" href="assets/img/logo.png">
 <link rel="apple-touch-icon" href="assets/img/logo.png">
@@ -15,6 +15,28 @@
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
+
+<!-- ===== PEMILIH MENU (Absensi / Jurnal) ===== -->
+<div class="mode-overlay" id="modePicker" hidden>
+  <div class="mode-box">
+    <img src="assets/img/logo.png" alt="Logo SDI Assuryaniyah">
+    <h2>SDI ASSURYANIYAH</h2>
+    <p>Pilih menu yang ingin digunakan</p>
+    <div class="mode-cards">
+      <button type="button" class="mode-card" data-pilih="absen">
+        <span class="mc-icon mc-absen"><i class="fa-solid fa-clipboard-user"></i></span>
+        <span class="mc-title">Absensi Siswa</span>
+        <span class="mc-desc">Tandai kehadiran per nama siswa, rekap bulanan, dan ekspor CSV.</span>
+      </button>
+      <button type="button" class="mode-card" data-pilih="jurnal">
+        <span class="mc-icon mc-jurnal"><i class="fa-solid fa-book-open"></i></span>
+        <span class="mc-title">Jurnal Harian</span>
+        <span class="mc-desc">Catat kegiatan mengajar: materi, refleksi, kendala, dan tindak lanjut.</span>
+      </button>
+    </div>
+    <button type="button" class="mode-tutup" id="modeTutup" hidden><i class="fa-solid fa-xmark"></i> Batal</button>
+  </div>
+</div>
 
 <!-- ===== HEADER ===== -->
 <header class="site-header">
@@ -27,7 +49,7 @@
       </div>
     </div>
     <div class="header-badge">
-      <span class="badge-app"><i class="fa-solid fa-clipboard-user"></i> Sistem Absensi Siswa</span>
+      <span class="badge-app"><i class="fa-solid fa-clipboard-user" id="badgeIcon"></i> <span id="badgeText">Sistem Absensi Siswa</span></span>
       <span class="badge-clock" id="liveClock">--:--:--</span>
     </div>
   </div>
@@ -38,13 +60,16 @@
   <div class="container nav-inner">
     <button class="nav-toggle" id="navToggle" aria-label="Buka menu"><i class="fa-solid fa-bars"></i></button>
     <ul class="nav-menu" id="navMenu">
-      <li><a href="#" class="nav-link active" data-page="dashboard"><i class="fa-solid fa-gauge-high"></i> Beranda</a></li>
-      <li><a href="#" class="nav-link" data-page="absensi"><i class="fa-solid fa-pen-to-square"></i> Input Absensi</a></li>
-      <li><a href="#" class="nav-link" data-page="riwayat"><i class="fa-solid fa-clock-rotate-left"></i> Riwayat</a></li>
-      <li><a href="#" class="nav-link" data-page="kelas"><i class="fa-solid fa-chalkboard"></i> Data Kelas</a></li>
-      <li><a href="#" class="nav-link" data-page="siswa"><i class="fa-solid fa-user-graduate"></i> Data Siswa</a></li>
-      <li><a href="#" class="nav-link" data-page="rekap"><i class="fa-solid fa-chart-column"></i> Rekap</a></li>
+      <li data-untuk="absen"><a href="#" class="nav-link active" data-page="dashboard"><i class="fa-solid fa-gauge-high"></i> Beranda</a></li>
+      <li data-untuk="absen"><a href="#" class="nav-link" data-page="absensi"><i class="fa-solid fa-pen-to-square"></i> Input Absensi</a></li>
+      <li data-untuk="absen"><a href="#" class="nav-link" data-page="riwayat"><i class="fa-solid fa-clock-rotate-left"></i> Riwayat</a></li>
+      <li data-untuk="absen"><a href="#" class="nav-link" data-page="kelas"><i class="fa-solid fa-chalkboard"></i> Data Kelas</a></li>
+      <li data-untuk="absen"><a href="#" class="nav-link" data-page="siswa"><i class="fa-solid fa-user-graduate"></i> Data Siswa</a></li>
+      <li data-untuk="absen"><a href="#" class="nav-link" data-page="rekap"><i class="fa-solid fa-chart-column"></i> Rekap</a></li>
+      <li data-untuk="jurnal"><a href="#" class="nav-link" data-page="jurnal"><i class="fa-solid fa-book-open"></i> Isi Jurnal</a></li>
+      <li data-untuk="jurnal"><a href="#" class="nav-link" data-page="jurnalriwayat"><i class="fa-solid fa-clock-rotate-left"></i> Riwayat Jurnal</a></li>
       <li><a href="#" class="nav-link" data-page="pengaturan"><i class="fa-solid fa-gear"></i> Pengaturan</a></li>
+      <li class="nav-akhir"><a href="#" class="nav-link nav-ganti" id="btnGantiMode"><i class="fa-solid fa-shuffle"></i> Ganti Menu</a></li>
     </ul>
   </div>
 </nav>
@@ -394,8 +419,12 @@
       <div class="filter-bar">
         <div class="field"><label for="rekapBulan">Bulan</label><input type="month" id="rekapBulan"></div>
         <div class="field"><label for="rekapKelas">Kelas</label><select id="rekapKelas"><option value="">Semua kelas</option></select></div>
+        <div class="field field-btn"><button class="btn btn-sm btn-accent" id="rekapMatriks"><i class="fa-solid fa-table-cells"></i> Ekspor Absensi per Tanggal</button></div>
         <div class="field field-btn"><button class="btn btn-sm btn-ghost" id="rekapPrint"><i class="fa-solid fa-print"></i> Cetak / PDF</button></div>
       </div>
+      <p class="hint"><i class="fa-solid fa-circle-info"></i>
+        <strong>Ekspor Absensi per Tanggal</strong> menghasilkan CSV satu baris per siswa dengan kolom tanggal
+        01&ndash;31 berisi H / S / I / A &mdash; siap dibuka di Excel sebagai laporan bulanan.</p>
     </div>
   </div>
 
@@ -454,6 +483,147 @@
   </div>
 </section>
 
+<!-- ============ HALAMAN: ISI JURNAL ============ -->
+<section class="page" id="page-jurnal">
+  <h2 class="section-title"><i class="fa-solid fa-book-open"></i> Jurnal Harian</h2>
+
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="fa-solid fa-pen-nib"></i> <span id="jrFormLabel">Isi Jurnal</span></h3>
+      <span class="pill" id="jrCountPill">0 jurnal</span>
+    </div>
+    <div class="card-body">
+      <form id="formJurnal" autocomplete="off">
+        <input type="hidden" id="jrId">
+        <div class="grid-2">
+          <div class="field">
+            <label for="jrNama">Nama Guru <span class="req">*</span></label>
+            <input type="text" id="jrNama" required placeholder="Nama beserta gelar">
+          </div>
+          <div class="field">
+            <label for="jrNip">NIP/NUPTK</label>
+            <input type="text" id="jrNip" placeholder="Opsional">
+          </div>
+          <div class="field">
+            <label for="jrStatus">Status Guru</label>
+            <select id="jrStatus">
+              <option value="GTY">GTY (Guru Tetap Yayasan)</option>
+              <option value="GTT">GTT (Guru Tidak Tetap)</option>
+              <option value="PNS">PNS</option>
+              <option value="PPPK">PPPK</option>
+              <option value="Honorer">Honorer</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="jrTanggal">Tanggal <span class="req">*</span></label>
+            <input type="date" id="jrTanggal" required>
+          </div>
+          <div class="field">
+            <label for="jrKelas">Kelas <span class="req">*</span></label>
+            <input type="text" id="jrKelas" required list="dlKelas" placeholder="Contoh: IV A">
+            <datalist id="dlKelas"></datalist>
+          </div>
+          <div class="field">
+            <label for="jrMapel">Mata Pelajaran <span class="req">*</span></label>
+            <input type="text" id="jrMapel" placeholder="Contoh: Matematika">
+          </div>
+          <div class="field">
+            <label for="jrJam">Jam Pelajaran</label>
+            <input type="text" id="jrJam" placeholder="Contoh: Jam ke-1–2">
+          </div>
+          <div class="field">
+            <label for="jrMetode">Metode Pembelajaran</label>
+            <input type="text" id="jrMetode" placeholder="Contoh: Ceramah, diskusi kelompok">
+          </div>
+        </div>
+
+        <div class="field field-lebar">
+          <label for="jrMateri">Materi Pelajaran <span class="req">*</span></label>
+          <input type="text" id="jrMateri" placeholder="Pokok bahasan yang diajarkan">
+        </div>
+        <div class="field field-lebar">
+          <label for="jrTujuan">Tujuan Pembelajaran</label>
+          <input type="text" id="jrTujuan" placeholder="Tujuan yang ingin dicapai">
+        </div>
+
+        <div class="grid-2 field-lebar">
+          <div class="field">
+            <label for="jrHadir">Jumlah Hadir</label>
+            <input type="number" id="jrHadir" min="0" inputmode="numeric" placeholder="0">
+          </div>
+          <div class="field">
+            <label for="jrTidak">Jumlah Tidak Hadir</label>
+            <input type="number" id="jrTidak" min="0" inputmode="numeric" placeholder="0">
+          </div>
+        </div>
+        <p class="hint" id="jrAutoHint" hidden><i class="fa-solid fa-circle-info"></i>
+          Jumlah hadir diambil otomatis dari catatan absensi kelas ini — tetap bisa diubah.</p>
+
+        <div class="field field-lebar">
+          <label for="jrRefleksi">Refleksi Pembelajaran</label>
+          <textarea id="jrRefleksi" rows="3" placeholder="Apa yang berjalan baik? Apa yang perlu diperbaiki?"></textarea>
+        </div>
+        <div class="field field-lebar">
+          <label for="jrKendala">Kendala Pembelajaran</label>
+          <textarea id="jrKendala" rows="3" placeholder="Hambatan yang ditemui selama pembelajaran"></textarea>
+        </div>
+        <div class="field field-lebar">
+          <label for="jrTindak">Tindak Lanjut</label>
+          <textarea id="jrTindak" rows="3" placeholder="Rencana perbaikan atau tindak lanjut"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> <span id="jrSubmitLabel">Simpan Jurnal</span></button>
+          <button type="button" class="btn btn-ghost" id="jrReset"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HALAMAN: RIWAYAT JURNAL ============ -->
+<section class="page" id="page-jurnalriwayat">
+  <h2 class="section-title"><i class="fa-solid fa-clock-rotate-left"></i> Riwayat Jurnal</h2>
+
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="fa-solid fa-table-list"></i> Jurnal Tersimpan</h3>
+      <span class="pill" id="jrRiwayatCount">0 jurnal</span>
+    </div>
+    <div class="card-body">
+      <div class="filter-bar">
+        <div class="field"><label for="jrFltDari">Dari tanggal</label><input type="date" id="jrFltDari"></div>
+        <div class="field"><label for="jrFltSampai">Sampai tanggal</label><input type="date" id="jrFltSampai"></div>
+        <div class="field"><label for="jrFltCari">Cari</label><input type="search" id="jrFltCari" placeholder="Guru, kelas, mapel, materi…"></div>
+        <div class="field field-btn"><button class="btn btn-ghost" id="jrFltReset"><i class="fa-solid fa-filter-circle-xmark"></i> Bersihkan</button></div>
+      </div>
+
+      <div class="filter-bar">
+        <div class="field"><label for="jrBulan">Laporan bulanan</label><input type="month" id="jrBulan"></div>
+        <div class="field field-btn"><button class="btn btn-sm btn-accent" id="jrExportBulan"><i class="fa-solid fa-table-cells"></i> Ekspor Laporan Bulanan</button></div>
+      </div>
+      <p class="hint"><i class="fa-solid fa-circle-info"></i>
+        <strong>Laporan bulanan</strong> berisi satu baris per tanggal (01 sampai akhir bulan) beserta isi
+        jurnalnya &mdash; tanggal tanpa jurnal tetap ditampilkan kosong agar terlihat mana yang belum diisi.</p>
+
+      <div class="table-scroll">
+        <table class="tbl">
+          <thead><tr>
+            <th>Tanggal</th><th>Nama Guru</th><th>Kelas</th><th>Mapel</th>
+            <th>Materi</th><th>Hadir</th><th>Tidak</th><th class="ta-r">Aksi</th>
+          </tr></thead>
+          <tbody id="jrBody"></tbody>
+        </table>
+      </div>
+
+      <div class="table-actions">
+        <button class="btn btn-sm btn-accent" id="jrExport"><i class="fa-solid fa-file-csv"></i> Ekspor CSV</button>
+        <button class="btn btn-sm btn-danger-ghost" id="jrHapusFiltered"><i class="fa-solid fa-trash"></i> Hapus data terfilter</button>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ============ HALAMAN: PENGATURAN ============ -->
 <section class="page" id="page-pengaturan">
   <h2 class="section-title"><i class="fa-solid fa-gear"></i> Pengaturan</h2>
@@ -482,7 +652,8 @@
         <div class="setting-stats">
           <div><strong id="dbKelas">0</strong><span>Kelas</span></div>
           <div><strong id="dbSiswa">0</strong><span>Siswa</span></div>
-          <div><strong id="dbAbsen">0</strong><span>Catatan</span></div>
+          <div><strong id="dbAbsen">0</strong><span>Catatan Absensi</span></div>
+          <div><strong id="dbJurnal">0</strong><span>Jurnal</span></div>
           <div><strong id="dbSize">0 KB</strong><span>Ukuran Data</span></div>
         </div>
         <div class="btn-stack">

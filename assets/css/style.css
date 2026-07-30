@@ -587,6 +587,64 @@ code {
 .print-head { display: none; }
 .legend-note { margin-top: 14px; }
 
+/* --- Pemilih menu (Absensi / Jurnal) --- */
+.mode-overlay {
+  position: fixed; inset: 0; z-index: 400;
+  display: grid; place-items: center; padding: 22px;
+  background: var(--gradient);
+  animation: pageIn .3s var(--ease-out) both;
+}
+.mode-overlay[hidden] { display: none; }
+.mode-box {
+  width: 100%; max-width: 720px; text-align: center; color: #fff;
+  animation: popIn .4s var(--ease-out) both;
+}
+.mode-box > img { height: 86px; width: 86px; object-fit: contain;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, .3)); }
+.mode-box h2 { margin-top: 12px; font-size: 1.3rem; font-weight: 800; letter-spacing: .5px; }
+.mode-box > p { font-size: 13.5px; color: rgba(255, 255, 255, .78); margin-top: 2px; }
+.mode-cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px; margin-top: 26px;
+}
+.mode-card {
+  display: grid; justify-items: center; gap: 8px; cursor: pointer;
+  font-family: inherit; text-align: center;
+  background: var(--white); border: 0; border-radius: var(--radius-lg);
+  padding: 30px 22px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .25);
+  transition: transform .3s var(--ease-out), box-shadow .3s var(--ease-out);
+}
+.mode-card:hover { transform: translateY(-5px) scale(1.02); box-shadow: 0 22px 54px rgba(0, 0, 0, .32); }
+.mode-card:focus-visible { outline: 4px solid var(--accent); outline-offset: 3px; }
+.mc-icon {
+  width: 64px; height: 64px; display: grid; place-items: center;
+  border-radius: 50%; font-size: 24px; color: #fff; margin-bottom: 4px;
+}
+.mc-absen  { background: var(--gradient2); box-shadow: 0 8px 22px rgba(37, 99, 235, .4); }
+.mc-jurnal { background: var(--gradient3); box-shadow: 0 8px 22px rgba(245, 158, 11, .4); }
+.mc-title { font-size: 1.05rem; font-weight: 800; color: var(--primary); }
+.mc-desc { font-size: 12.3px; color: var(--muted); line-height: 1.65; }
+.mode-tutup {
+  margin-top: 22px; cursor: pointer; font-family: inherit;
+  background: rgba(255, 255, 255, .14); color: #fff;
+  border: 1px solid rgba(255, 255, 255, .35);
+  padding: 9px 22px; border-radius: var(--radius-pill);
+  font-size: 12.8px; font-weight: 700; transition: var(--transition);
+}
+.mode-tutup:hover { background: rgba(255, 255, 255, .26); }
+.mode-tutup[hidden] { display: none; }
+
+/* Menu navigasi mengikuti mode aktif */
+body[data-mode="absen"]  #navMenu li[data-untuk="jurnal"] { display: none; }
+body[data-mode="jurnal"] #navMenu li[data-untuk="absen"]  { display: none; }
+.nav-akhir { margin-left: auto; }
+.nav-ganti { color: var(--accent); font-weight: 700; }
+.nav-ganti:hover { color: #fff; }
+
+/* Bidang selebar formulir (jurnal) */
+.field-lebar { margin-top: 15px; }
+
 /* ===== 5. ANIMASI & TRANSISI =============================== */
 .page { display: none; }
 .page.active { display: block; animation: pageIn .5s var(--ease-out) both; }
@@ -699,6 +757,7 @@ code {
   .nav-menu.open { display: flex; animation: pageIn .3s var(--ease-out) both; }
   .nav-link { width: 100%; padding: 13px 8px; }
   .nav-link::after { left: 8px; right: auto; width: 26px; }
+  .nav-akhir { margin-left: 0; border-top: 1px solid rgba(255, 255, 255, .14); }
 }
 /* Tabel input harian menjadi kartu bertumpuk agar nyaman di ponsel */
 @media (max-width: 720px) {

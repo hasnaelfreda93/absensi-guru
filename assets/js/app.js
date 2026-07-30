@@ -1,22 +1,24 @@
 /* ============================================================
-   ABSENSI SISWA — SDI ASSURYANIYAH
-   Guru menandai kehadiran per nama siswa (Hadir / Sakit / Izin / Alpa).
+   ABSENSI & JURNAL — SDI ASSURYANIYAH
+   Dua menu utama, dipilih di awal: Absensi Siswa (kehadiran per
+   nama siswa) dan Jurnal Harian (catatan kegiatan mengajar guru).
    Aplikasi satu halaman, tanpa framework, offline-first.
    ============================================================
    Struktur berkas:
-     1.  KONSTANTA       — status kehadiran, nama hari & bulan
-     2.  UTIL            — tanggal, teks, CSV, unduhan
-     3.  STORE           — kelas, siswa, absensi di localStorage
-     4.  UI              — toast, modal, riak, animasi, autocomplete
-     5.  ROUTER          — perpindahan halaman yang mulus
-     6.  HAL. BERANDA    — ringkasan hari ini & bulan berjalan
-     7.  HAL. INPUT      — daftar siswa satu kelas, tandai per nama
-     8.  HAL. RIWAYAT    — catatan tersimpan, filter, ekspor
-     9.  HAL. DATA KELAS — CRUD kelas
-     10. HAL. DATA SISWA — CRUD siswa, impor CSV/tempel, ekspor
-     11. HAL. REKAP      — rekap per kelas & per siswa, ekspor, cetak
-     12. HAL. PENGATURAN — hari sekolah, cadangan data
-     13. INIT            — perakitan seluruh modul
+     1.  KONSTANTA        — status kehadiran, nama hari & bulan
+     2.  UTIL             — tanggal, teks, CSV, unduhan
+     3.  STORE            — kelas, siswa, absensi, jurnal (localStorage)
+     4.  UI               — toast, modal, riak, animasi, autocomplete
+     5.  MODE & ROUTER    — pemilih menu + perpindahan halaman
+     6.  HAL. BERANDA     — ringkasan hari ini & bulan berjalan
+     7.  HAL. INPUT       — daftar siswa satu kelas, tandai per nama
+     8.  HAL. RIWAYAT     — catatan tersimpan, filter, ekspor
+     9.  HAL. DATA KELAS  — CRUD kelas
+     10. HAL. DATA SISWA  — CRUD siswa, impor CSV/tempel, ekspor
+     11. HAL. REKAP       — rekap per kelas & per siswa, ekspor, cetak
+     11b.HAL. JURNAL      — isi jurnal harian + riwayat, ekspor
+     12. HAL. PENGATURAN  — hari sekolah, cadangan data
+     13. INIT             — perakitan seluruh modul
    ============================================================ */
 'use strict';
 
@@ -136,22 +138,25 @@ const unduhCSV = (nama, header, baris) =>
     lama tidak berubah ketika daftar siswa diperbarui.                      */
 
 const Store = {
-  KEY_KELAS: 'as_kelas_v2',
-  KEY_SISWA: 'as_siswa_v2',
-  KEY_ABSEN: 'as_absen_v2',
-  KEY_SET:   'as_setting_v2',
+  KEY_KELAS:  'as_kelas_v2',
+  KEY_SISWA:  'as_siswa_v2',
+  KEY_ABSEN:  'as_absen_v2',
+  KEY_JURNAL: 'as_jurnal_v1',
+  KEY_SET:    'as_setting_v2',
 
   SETTING_DEFAULT: { hariSekolah: [1, 2, 3, 4, 5, 6] },   // Senin–Sabtu
 
   kelas: [],
   siswa: [],
   absen: [],
+  jurnal: [],
   setting: {},
 
   muat() {
     this.kelas   = this._baca(this.KEY_KELAS, []);
     this.siswa   = this._baca(this.KEY_SISWA, []);
     this.absen   = this._baca(this.KEY_ABSEN, []);
+    this.jurnal  = this._baca(this.KEY_JURNAL, []);
     this.setting = { ...this.SETTING_DEFAULT, ...this._baca(this.KEY_SET, {}) };
   },
 
@@ -175,6 +180,7 @@ const Store = {
   simpanKelas()   { this._tulis(this.KEY_KELAS, this.kelas); },
   simpanSiswa()   { this._tulis(this.KEY_SISWA, this.siswa); },
   simpanAbsen()   { this._tulis(this.KEY_ABSEN, this.absen); },
+  simpanJurnal()  { this._tulis(this.KEY_JURNAL, this.jurnal); },
   simpanSetting() { this._tulis(this.KEY_SET, this.setting); },
 
   /* --- Kelas --- */
@@ -214,8 +220,14 @@ const Store = {
       bandingNama(this.namaKelas(a.kelasId), this.namaKelas(b.kelasId)));
   },
 
+  /** Jurnal terurut: tanggal terbaru lebih dahulu. */
+  jurnalTerurut() {
+    return [...this.jurnal].sort((a, b) =>
+      b.tanggal.localeCompare(a.tanggal) || (b.ts || 0) - (a.ts || 0));
+  },
+
   ukuran() {
-    const n = [this.KEY_KELAS, this.KEY_SISWA, this.KEY_ABSEN, this.KEY_SET]
+    const n = [this.KEY_KELAS, this.KEY_SISWA, this.KEY_ABSEN, this.KEY_JURNAL, this.KEY_SET]
       .reduce((t, k) => t + (localStorage.getItem(k) || '').length, 0);
     return n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`;
   },
@@ -447,21 +459,76 @@ const Autocomplete = {
   },
 };
 
-/* ===== 5. ROUTER =========================================== */
+/* ===== 5. MODE & ROUTER ==================================== */
+
+/*  Dua menu utama: "absen" dan "jurnal". Dipilih sekali di awal
+    (tersimpan), menu navigasi mengikuti, dan dapat diganti kapan
+    saja lewat tombol Ganti Menu.                                 */
+
+const Mode = {
+  KEY: 'as_mode_v1',
+
+  get()  { return localStorage.getItem(this.KEY) || ''; },
+
+  set(m, pindah = true) {
+    localStorage.setItem(this.KEY, m);
+    this.terapkan(m);
+    $('#modePicker').hidden = true;
+    if (pindah) Router.buka(this.halamanAwal());
+  },
+
+  terapkan(m) {
+    document.body.dataset.mode = m;
+    const jurnal = m === 'jurnal';
+    $('#badgeText').textContent = jurnal ? 'Jurnal Harian Guru' : 'Sistem Absensi Siswa';
+    $('#badgeIcon').className = `fa-solid ${jurnal ? 'fa-book-open' : 'fa-clipboard-user'}`;
+  },
+
+  halamanAwal() { return this.get() === 'jurnal' ? 'jurnal' : 'dashboard'; },
+
+  /** Mode pemilik sebuah halaman; '' berarti milik keduanya. */
+  pemilik(nama) {
+    if (['jurnal', 'jurnalriwayat'].includes(nama)) return 'jurnal';
+    if (nama === 'pengaturan') return '';
+    return 'absen';
+  },
+
+  bukaPicker() {
+    $('#modeTutup').hidden = !this.get();     // pertama kali: tidak bisa batal
+    $('#modePicker').hidden = false;
+  },
+
+  init() {
+    $$('.mode-card').forEach(b =>
+      b.addEventListener('click', () => this.set(b.dataset.pilih)));
+    $('#modeTutup').addEventListener('click', () => { $('#modePicker').hidden = true; });
+    $('#btnGantiMode').addEventListener('click', e => {
+      e.preventDefault();
+      this.bukaPicker();
+      $('#navMenu').classList.remove('open');
+    });
+
+    const m = this.get();
+    this.terapkan(m || 'absen');
+    if (!m) this.bukaPicker();
+  },
+};
 
 const HALAMAN = {
-  dashboard:  () => Beranda,
-  absensi:    () => Input,
-  riwayat:    () => Riwayat,
-  kelas:      () => Kelas,
-  siswa:      () => Siswa,
-  rekap:      () => Rekap,
-  pengaturan: () => Pengaturan,
+  dashboard:     () => Beranda,
+  absensi:       () => Input,
+  riwayat:       () => Riwayat,
+  kelas:         () => Kelas,
+  siswa:         () => Siswa,
+  rekap:         () => Rekap,
+  jurnal:        () => Jurnal,
+  jurnalriwayat: () => JurnalRiwayat,
+  pengaturan:    () => Pengaturan,
 };
 
 const Router = {
   init() {
-    $$('.nav-link').forEach(a => {
+    $$('.nav-link[data-page]').forEach(a => {
       a.addEventListener('click', e => {
         e.preventDefault();
         this.buka(a.dataset.page);
@@ -485,12 +552,17 @@ const Router = {
   dariHash(gulir = true) {
     const h = location.hash.replace('#', '');
     if (h && $(`#page-${h}`)) this.buka(h, gulir);
-    else this.buka('dashboard', false);
+    else this.buka(Mode.halamanAwal(), false);
   },
 
   buka(nama, gulir = true) {
     const target = $(`#page-${nama}`);
     if (!target) return;
+
+    // Halaman dari menu lain → pindahkan mode agar navigasi tetap konsisten.
+    // Saat mode belum pernah dipilih, biarkan (picker sedang tampil).
+    const milik = Mode.pemilik(nama);
+    if (milik && Mode.get() && milik !== Mode.get()) Mode.set(milik, false);
 
     $$('.page').forEach(p => p.classList.remove('active'));
     target.classList.add('active');
@@ -1441,6 +1513,7 @@ const Rekap = {
     $('#rekapKelas').addEventListener('change', () => this.render());
     $('#rekapKelasExport').addEventListener('click', () => this.eksporKelas());
     $('#rekapSiswaExport').addEventListener('click', () => this.eksporSiswa());
+    $('#rekapMatriks').addEventListener('click', () => this.eksporMatriks());
     $('#rekapPrint').addEventListener('click', () => {
       UI.toast('Menyiapkan dokumen cetak…', 'info', 1600);
       setTimeout(() => window.print(), 320);
@@ -1579,6 +1652,59 @@ const Rekap = {
     UI.toast(`Rekap per kelas ${bulanPanjang(bulan)} diekspor.`, 'ok');
   },
 
+  /** Matriks bulanan: satu baris per siswa, kolom tanggal 01–31 berisi H/S/I/A. */
+  eksporMatriks() {
+    const bulan = $('#rekapBulan').value || isoMonth();
+    const kelasId = $('#rekapKelas').value;
+    const [y, m] = bulan.split('-').map(Number);
+    const jmlHari = new Date(y, m, 0).getDate();
+
+    const data = this.data(bulan);
+    if (!data.length) { UI.toast('Tidak ada data absensi pada periode ini.', 'warn'); return; }
+
+    // Peta cepat: kelasId → tanggal → catatan
+    const peta = new Map();
+    data.forEach(a => {
+      if (!peta.has(a.kelasId)) peta.set(a.kelasId, new Map());
+      peta.get(a.kelasId).set(a.tanggal, a);
+    });
+
+    const semua = !kelasId;
+    const daftar = kelasId ? Store.siswaKelas(kelasId) : Store.siswaTerurut();
+    const tgl = n => `${bulan}-${String(n).padStart(2, '0')}`;
+
+    const baris = [];
+    daftar.forEach((s, i) => {
+      const perTanggal = peta.get(s.kelasId);
+      if (!perTanggal) return;                      // kelas ini tanpa catatan bulan itu
+      const sel = [];
+      const tot = { H: 0, S: 0, I: 0, A: 0 };
+      for (let h = 1; h <= jmlHari; h++) {
+        const rec = perTanggal.get(tgl(h));
+        if (!rec) { sel.push(''); continue; }       // kelas tidak tercatat hari itu
+        const e = (rec.entri || []).find(x => x.siswaId === s.id);
+        const kode = e ? statusMeta(e.status).kode : 'H';
+        tot[kode] = (tot[kode] || 0) + 1;
+        sel.push(kode);
+      }
+      const hari = tot.H + tot.S + tot.I + tot.A;
+      baris.push([baris.length + 1, s.nama, s.nis || '',
+        ...(semua ? [Store.namaKelas(s.kelasId)] : []),
+        ...sel, tot.H, tot.S, tot.I, tot.A, persen(tot.H, hari) + '%']);
+    });
+
+    if (!baris.length) { UI.toast('Tidak ada siswa dengan catatan pada periode ini.', 'warn'); return; }
+
+    const header = ['No', 'Nama Siswa', 'NIS', ...(semua ? ['Kelas'] : []),
+      ...Array.from({ length: jmlHari }, (_, i) => String(i + 1).padStart(2, '0')),
+      'H', 'S', 'I', 'A', '% Hadir'];
+
+    const label = kelasId ? Store.namaKelas(kelasId).replace(/\s+/g, '') : 'semua-kelas';
+    unduhCSV(`absensi-per-tanggal-${bulan}-${label}.csv`, header, baris);
+    UI.toast(`Laporan per tanggal ${bulanPanjang(bulan)} (${baris.length} siswa) diekspor. ` +
+             'Keterangan: H hadir, S sakit, I izin, A alpa, kosong = tidak tercatat.', 'ok', 5200);
+  },
+
   eksporSiswa() {
     const bulan = $('#rekapBulan').value || isoMonth();
     const baris = this.hitungSiswa(bulan);
@@ -1589,6 +1715,288 @@ const Rekap = {
       baris.map((r, i) => [i + 1, r.nama, r.nis, r.kelas, r.hari, r.hadir,
         ...ABSEN.map(s => r[s.key]), r.absen, r.pct + '%']));
     UI.toast(`Rekap per siswa ${bulanPanjang(bulan)} diekspor.`, 'ok');
+  },
+};
+
+/* ===== 11b. HALAMAN JURNAL HARIAN ========================== */
+
+const Jurnal = {
+  KEY_PROFIL: 'as_guru_profil_v1',
+
+  init() {
+    $('#jrTanggal').max = isoDate();
+    $('#jrTanggal').value = isoDate();
+
+    $('#formJurnal').addEventListener('submit', e => { e.preventDefault(); this.simpan(); });
+    $('#jrReset').addEventListener('click', () => this.resetForm());
+
+    // Autoisi jumlah hadir dari catatan absensi kelas tersebut
+    $('#jrTanggal').addEventListener('change', () => this.isiOtomatis());
+    $('#jrKelas').addEventListener('change', () => this.isiOtomatis());
+  },
+
+  render() {
+    // Saran nama kelas dari Data Siswa
+    $('#dlKelas').innerHTML = Store.kelasTerurut()
+      .map(k => `<option value="${esc(k.nama)}"></option>`).join('');
+    $('#jrCountPill').textContent = `${Store.jurnal.length} jurnal`;
+
+    // Identitas guru terakhir dipakai lagi agar tidak mengetik ulang
+    if (!$('#jrNama').value) {
+      try {
+        const p = JSON.parse(localStorage.getItem(this.KEY_PROFIL) || '{}');
+        $('#jrNama').value = p.nama || '';
+        $('#jrNip').value = p.nip || '';
+        if (p.status) $('#jrStatus').value = p.status;
+      } catch { /* profil rusak: biarkan kosong */ }
+    }
+  },
+
+  /** Cari kelas terdaftar yang namanya sama (tanpa peka kapital). */
+  kelasCocok(nama) {
+    return Store.kelas.find(k => norm(k.nama) === norm(nama)) || null;
+  },
+
+  isiOtomatis() {
+    const k = this.kelasCocok($('#jrKelas').value);
+    const rec = k && Store.absenPada(k.id, $('#jrTanggal').value);
+    $('#jrAutoHint').hidden = !rec;
+    if (!rec) return;
+    $('#jrHadir').value = hadirDari(rec);
+    $('#jrTidak').value = (rec.entri || []).length;
+  },
+
+  simpan() {
+    const id = $('#jrId').value;
+    const rec = {
+      tanggal: $('#jrTanggal').value,
+      nama: $('#jrNama').value.trim(),
+      nip: $('#jrNip').value.trim(),
+      status: $('#jrStatus').value,
+      kelas: $('#jrKelas').value.trim(),
+      mapel: $('#jrMapel').value.trim(),
+      jam: $('#jrJam').value.trim(),
+      metode: $('#jrMetode').value.trim(),
+      materi: $('#jrMateri').value.trim(),
+      tujuan: $('#jrTujuan').value.trim(),
+      hadir: $('#jrHadir').value === '' ? '' : num($('#jrHadir').value),
+      tidak: $('#jrTidak').value === '' ? '' : num($('#jrTidak').value),
+      refleksi: $('#jrRefleksi').value.trim(),
+      kendala: $('#jrKendala').value.trim(),
+      tindak: $('#jrTindak').value.trim(),
+      ts: Date.now(),
+    };
+
+    if (!rec.tanggal || !rec.nama || !rec.kelas || !rec.mapel || !rec.materi) {
+      UI.toast('Tanggal, nama guru, kelas, mata pelajaran, dan materi wajib diisi.', 'err', 4200);
+      return;
+    }
+    if (rec.tanggal > isoDate()) {
+      $('#jrTanggal').value = isoDate();
+      UI.toast('Jurnal tidak dapat diisi untuk tanggal setelah hari ini.', 'err', 3800);
+      return;
+    }
+
+    if (id) {
+      Object.assign(Store.jurnal.find(j => j.id === id), rec);
+      UI.toast('Jurnal diperbarui.', 'ok');
+    } else {
+      Store.jurnal.push({ id: uid(), ...rec });
+      UI.toast(`Jurnal ${rec.mapel} — ${tanggalPanjang(rec.tanggal)} tersimpan.`, 'ok', 4000);
+    }
+    Store.simpanJurnal();
+    localStorage.setItem(this.KEY_PROFIL,
+      JSON.stringify({ nama: rec.nama, nip: rec.nip, status: rec.status }));
+
+    this.resetForm();
+    this.render();
+    JurnalRiwayat.render();
+    Pengaturan.renderStat();
+  },
+
+  muatKeForm(id) {
+    const j = Store.jurnal.find(x => x.id === id);
+    if (!j) return;
+    $('#jrId').value = j.id;
+    $('#jrTanggal').value = j.tanggal;
+    $('#jrNama').value = j.nama || '';
+    $('#jrNip').value = j.nip || '';
+    $('#jrStatus').value = j.status || 'GTY';
+    $('#jrKelas').value = j.kelas || '';
+    $('#jrMapel').value = j.mapel || '';
+    $('#jrJam').value = j.jam || '';
+    $('#jrMetode').value = j.metode || '';
+    $('#jrMateri').value = j.materi || '';
+    $('#jrTujuan').value = j.tujuan || '';
+    $('#jrHadir').value = j.hadir ?? '';
+    $('#jrTidak').value = j.tidak ?? '';
+    $('#jrRefleksi').value = j.refleksi || '';
+    $('#jrKendala').value = j.kendala || '';
+    $('#jrTindak').value = j.tindak || '';
+    $('#jrAutoHint').hidden = true;
+    $('#jrSubmitLabel').textContent = 'Perbarui Jurnal';
+    $('#jrFormLabel').textContent = 'Ubah Jurnal';
+    Router.buka('jurnal');
+  },
+
+  resetForm() {
+    // Identitas guru dipertahankan; hanya isi kegiatan yang dikosongkan
+    const nama = $('#jrNama').value, nip = $('#jrNip').value, st = $('#jrStatus').value;
+    $('#formJurnal').reset();
+    $('#jrId').value = '';
+    $('#jrTanggal').value = isoDate();
+    $('#jrNama').value = nama;
+    $('#jrNip').value = nip;
+    $('#jrStatus').value = st;
+    $('#jrAutoHint').hidden = true;
+    $('#jrSubmitLabel').textContent = 'Simpan Jurnal';
+    $('#jrFormLabel').textContent = 'Isi Jurnal';
+  },
+};
+
+const JurnalRiwayat = {
+  init() {
+    ['#jrFltDari', '#jrFltSampai', '#jrFltCari'].forEach(s =>
+      $(s).addEventListener('input', () => this.renderTabel()));
+    $('#jrFltReset').addEventListener('click', () => {
+      ['#jrFltDari', '#jrFltSampai', '#jrFltCari'].forEach(s => { $(s).value = ''; });
+      this.renderTabel();
+      UI.toast('Filter dibersihkan.', 'info');
+    });
+    $('#jrExport').addEventListener('click', () => this.ekspor());
+    $('#jrBulan').value = isoMonth();
+    $('#jrExportBulan').addEventListener('click', () => this.eksporBulanan());
+    $('#jrHapusFiltered').addEventListener('click', () => this.hapusTerfilter());
+
+    $('#jrBody').addEventListener('click', e => {
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      if (btn.dataset.act === 'edit') Jurnal.muatKeForm(btn.dataset.id);
+      if (btn.dataset.act === 'del') this.hapus(btn.dataset.id);
+    });
+  },
+
+  render() { this.renderTabel(); },
+
+  terfilter() {
+    const dari = $('#jrFltDari').value;
+    const sampai = $('#jrFltSampai').value;
+    const q = norm($('#jrFltCari').value);
+
+    return Store.jurnalTerurut().filter(j => {
+      if (dari && j.tanggal < dari) return false;
+      if (sampai && j.tanggal > sampai) return false;
+      if (q && !norm([j.nama, j.kelas, j.mapel, j.materi, j.tujuan, j.metode,
+                      j.refleksi, j.kendala, j.tindak].join(' ')).includes(q)) return false;
+      return true;
+    });
+  },
+
+  renderTabel() {
+    const data = this.terfilter();
+    const body = $('#jrBody');
+    $('#jrRiwayatCount').textContent = `${data.length} dari ${Store.jurnal.length} jurnal`;
+
+    body.innerHTML = data.length
+      ? data.map(j => `<tr>
+          <td><span class="nm">${tanggalPendek(j.tanggal)}</span>
+              <span class="sub">${HARI[hariDari(j.tanggal)]}</span></td>
+          <td><span class="nm">${esc(j.nama)}</span>
+              ${j.jam ? `<span class="sub">${esc(j.jam)}</span>` : ''}</td>
+          <td><span class="pill">${esc(j.kelas)}</span></td>
+          <td>${esc(j.mapel)}</td>
+          <td>${esc(j.materi.length > 60 ? j.materi.slice(0, 60) + '…' : j.materi)}</td>
+          <td><strong>${j.hadir === '' ? '—' : j.hadir}</strong></td>
+          <td>${j.tidak === '' ? '—' : j.tidak}</td>
+          <td><div class="act-row">
+            <button class="icon-btn ib-edit" data-act="edit" data-id="${j.id}" title="Ubah"><i class="fa-solid fa-pen"></i></button>
+            <button class="icon-btn ib-del" data-act="del" data-id="${j.id}" title="Hapus"><i class="fa-solid fa-trash"></i></button>
+          </div></td>
+        </tr>`).join('')
+      : UI.kosong(8, 'Belum ada jurnal', 'Isi jurnal pertama Anda pada menu Isi Jurnal.', 'fa-book-open');
+
+    UI.bertahap(body);
+  },
+
+  async hapus(id) {
+    const j = Store.jurnal.find(x => x.id === id);
+    if (!j) return;
+    const ok = await UI.konfirmasi('Hapus Jurnal',
+      `Hapus jurnal ${j.mapel} kelas ${j.kelas} tanggal ${tanggalPendek(j.tanggal)}?`, 'Ya, Hapus');
+    if (!ok) return;
+    Store.jurnal = Store.jurnal.filter(x => x.id !== id);
+    Store.simpanJurnal();
+    UI.toast('Jurnal dihapus.', 'ok');
+    this.renderTabel();
+    Jurnal.render();
+    Pengaturan.renderStat();
+  },
+
+  async hapusTerfilter() {
+    const data = this.terfilter();
+    if (!data.length) { UI.toast('Tidak ada jurnal terfilter.', 'warn'); return; }
+    const ok = await UI.konfirmasi('Hapus Jurnal Terfilter',
+      `${data.length} jurnal akan dihapus permanen. Lanjutkan?`, 'Ya, Hapus Semua');
+    if (!ok) return;
+    const buang = new Set(data.map(j => j.id));
+    Store.jurnal = Store.jurnal.filter(j => !buang.has(j.id));
+    Store.simpanJurnal();
+    UI.toast(`${buang.size} jurnal dihapus.`, 'ok');
+    this.renderTabel();
+    Jurnal.render();
+    Pengaturan.renderStat();
+  },
+
+  /** Laporan bulanan: satu baris per tanggal 01–akhir bulan; tanggal kosong ikut tampil. */
+  eksporBulanan() {
+    const bulan = $('#jrBulan').value || isoMonth();
+    const [y, m] = bulan.split('-').map(Number);
+    const jmlHari = new Date(y, m, 0).getDate();
+
+    const perTanggal = new Map();
+    Store.jurnalTerurut().filter(j => j.tanggal.startsWith(bulan))
+      .reverse()                                     // urut naik dalam satu tanggal
+      .forEach(j => {
+        if (!perTanggal.has(j.tanggal)) perTanggal.set(j.tanggal, []);
+        perTanggal.get(j.tanggal).push(j);
+      });
+
+    if (!perTanggal.size) { UI.toast(`Tidak ada jurnal pada ${bulanPanjang(bulan)}.`, 'warn'); return; }
+
+    const baris = [];
+    for (let h = 1; h <= jmlHari; h++) {
+      const tanggal = `${bulan}-${String(h).padStart(2, '0')}`;
+      const hari = HARI[hariDari(tanggal)];
+      const daftar = perTanggal.get(tanggal);
+      if (!daftar) {
+        baris.push([String(h).padStart(2, '0'), hari, '', '', '', '', '', '', '', '', '', '', '', '']);
+        continue;
+      }
+      daftar.forEach(j => baris.push([
+        String(h).padStart(2, '0'), hari, j.nama, j.kelas, j.mapel, j.jam, j.metode,
+        j.materi, j.tujuan, j.hadir, j.tidak, j.refleksi, j.kendala, j.tindak,
+      ]));
+    }
+
+    unduhCSV(`laporan-jurnal-${bulan}.csv`,
+      ['Tanggal', 'Hari', 'Nama Guru', 'Kelas', 'Mapel', 'Jam', 'Metode', 'Materi',
+       'Tujuan', 'Hadir', 'Tidak Hadir', 'Refleksi', 'Kendala', 'Tindak Lanjut'],
+      baris);
+    UI.toast(`Laporan jurnal ${bulanPanjang(bulan)} diekspor (${jmlHari} tanggal).`, 'ok', 4200);
+  },
+
+  ekspor() {
+    const data = this.terfilter();
+    if (!data.length) { UI.toast('Tidak ada jurnal untuk diekspor.', 'warn'); return; }
+    unduhCSV(`jurnal-harian-${isoDate()}.csv`,
+      ['Tanggal', 'Hari', 'Nama Guru', 'NIP/NUPTK', 'Status Guru', 'Kelas',
+       'Mata Pelajaran', 'Jam Pelajaran', 'Metode Pembelajaran', 'Materi Pelajaran',
+       'Tujuan Pembelajaran', 'Jumlah Hadir', 'Jumlah Tidak Hadir',
+       'Refleksi Pembelajaran', 'Kendala Pembelajaran', 'Tindak Lanjut'],
+      data.map(j => [j.tanggal, HARI[hariDari(j.tanggal)], j.nama, j.nip, j.status,
+        j.kelas, j.mapel, j.jam, j.metode, j.materi, j.tujuan, j.hadir, j.tidak,
+        j.refleksi, j.kendala, j.tindak]));
+    UI.toast(`${data.length} jurnal diekspor ke CSV.`, 'ok');
   },
 };
 
@@ -1622,6 +2030,7 @@ const Pengaturan = {
     UI.hitungAngka($('#dbKelas'), Store.kelas.length);
     UI.hitungAngka($('#dbSiswa'), Store.siswa.length);
     UI.hitungAngka($('#dbAbsen'), Store.absen.length);
+    UI.hitungAngka($('#dbJurnal'), Store.jurnal.length);
     $('#dbSize').textContent = Store.ukuran();
   },
 
@@ -1633,15 +2042,16 @@ const Pengaturan = {
 
   cadangkan() {
     const isi = JSON.stringify({
-      aplikasi: 'Absensi Siswa SDI Assuryaniyah',
-      versi: 2,
+      aplikasi: 'Absensi & Jurnal SDI Assuryaniyah',
+      versi: 3,
       dibuat: new Date().toISOString(),
       setting: Store.setting,
       kelas: Store.kelas,
       siswa: Store.siswa,
       absen: Store.absen,
+      jurnal: Store.jurnal,
     }, null, 2);
-    unduh(`cadangan-absensi-siswa-${isoDate()}.json`, isi, 'application/json');
+    unduh(`cadangan-absensi-jurnal-${isoDate()}.json`, isi, 'application/json');
     UI.toast('Cadangan berhasil diunduh.', 'ok');
   },
 
@@ -1655,15 +2065,19 @@ const Pengaturan = {
         if (!Array.isArray(d.kelas) || !Array.isArray(d.siswa) || !Array.isArray(d.absen)) {
           throw new Error('format');
         }
+        const jmlJurnal = Array.isArray(d.jurnal) ? d.jurnal.length : 0;
         const ok = await UI.konfirmasi('Pulihkan Cadangan',
-          `Berkas memuat ${d.kelas.length} kelas, ${d.siswa.length} siswa, dan ${d.absen.length} catatan. ` +
+          `Berkas memuat ${d.kelas.length} kelas, ${d.siswa.length} siswa, ` +
+          `${d.absen.length} catatan absensi, dan ${jmlJurnal} jurnal. ` +
           'Seluruh data saat ini akan diganti.', 'Ya, Pulihkan');
         if (!ok) return;
         Store.kelas = d.kelas;
         Store.siswa = d.siswa;
         Store.absen = d.absen;
+        Store.jurnal = Array.isArray(d.jurnal) ? d.jurnal : [];   // cadangan lama tanpa jurnal
         Store.setting = { ...Store.SETTING_DEFAULT, ...(d.setting || {}) };
-        Store.simpanKelas(); Store.simpanSiswa(); Store.simpanAbsen(); Store.simpanSetting();
+        Store.simpanKelas(); Store.simpanSiswa(); Store.simpanAbsen();
+        Store.simpanJurnal(); Store.simpanSetting();
         UI.toast('Data berhasil dipulihkan.', 'ok');
         renderSemua();
       } catch {
@@ -1693,10 +2107,10 @@ const Pengaturan = {
 
   async hapusSemua() {
     const ok = await UI.konfirmasi('Hapus Semua Data',
-      'Seluruh data kelas, siswa, absensi, dan pengaturan akan dihapus permanen dari browser ini. ' +
-      'Tindakan tidak dapat dibatalkan.', 'Ya, Hapus Semua');
+      'Seluruh data kelas, siswa, absensi, jurnal, dan pengaturan akan dihapus permanen ' +
+      'dari browser ini. Tindakan tidak dapat dibatalkan.', 'Ya, Hapus Semua');
     if (!ok) return;
-    [Store.KEY_KELAS, Store.KEY_SISWA, Store.KEY_ABSEN, Store.KEY_SET]
+    [Store.KEY_KELAS, Store.KEY_SISWA, Store.KEY_ABSEN, Store.KEY_JURNAL, Store.KEY_SET]
       .forEach(k => localStorage.removeItem(k));
     Store.muat();
     UI.toast('Seluruh data telah dihapus.', 'ok');
@@ -1786,6 +2200,8 @@ function renderSemua() {
   Kelas.render();
   Siswa.render();
   Rekap.render();
+  Jurnal.render();
+  JurnalRiwayat.render();
   Pengaturan.render();
   UI.amatiReveal();
 }
@@ -1801,7 +2217,10 @@ function init() {
   Kelas.init();
   Siswa.init();
   Rekap.init();
+  Jurnal.init();
+  JurnalRiwayat.init();
   Pengaturan.init();
+  Mode.init();
   Router.init();
 
   renderSemua();
