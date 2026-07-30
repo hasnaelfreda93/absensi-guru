@@ -343,9 +343,12 @@ const UI = {
     }
   },
 
-  /** Animasi bertahap pada baris yang baru digambar. */
+  /** Animasi bertahap pada baris yang baru digambar.
+      Dibatasi 30 baris pertama — sisanya tampil langsung agar tabel
+      panjang tidak membebani HP dengan ratusan animasi sekaligus. */
   bertahap(root, selector = 'tr') {
     $$(selector, root).forEach((el, i) => {
+      if (i >= 30) return;
       el.classList.add('anim-row');
       el.style.animationDelay = `${Math.min(i * 24, 400)}ms`;
     });
@@ -467,11 +470,17 @@ const Autocomplete = {
 
 const Mode = {
   KEY: 'as_mode_v1',
+  _fallback: '',            // dipakai bila localStorage diblokir (mode privat)
 
-  get()  { return localStorage.getItem(this.KEY) || ''; },
+  get() {
+    try { return localStorage.getItem(this.KEY) || this._fallback; }
+    catch { return this._fallback; }
+  },
 
   set(m, pindah = true) {
-    localStorage.setItem(this.KEY, m);
+    this._fallback = m;
+    try { localStorage.setItem(this.KEY, m); }
+    catch { /* tetap jalan tanpa tersimpan */ }
     this.terapkan(m);
     $('#modePicker').hidden = true;
     if (pindah) Router.buka(this.halamanAwal());
@@ -1814,8 +1823,10 @@ const Jurnal = {
       UI.toast(`Jurnal ${rec.mapel} — ${tanggalPanjang(rec.tanggal)} tersimpan.`, 'ok', 4000);
     }
     Store.simpanJurnal();
-    localStorage.setItem(this.KEY_PROFIL,
-      JSON.stringify({ nama: rec.nama, nip: rec.nip, status: rec.status }));
+    try {
+      localStorage.setItem(this.KEY_PROFIL,
+        JSON.stringify({ nama: rec.nama, nip: rec.nip, status: rec.status }));
+    } catch { /* profil tidak tersimpan: bukan masalah fatal */ }
 
     this.resetForm();
     this.render();
@@ -2203,15 +2214,12 @@ function buatDataContoh() {
 /* ===== 13. INIT =========================================== */
 
 function renderSemua() {
-  Beranda.render();
-  Input.render();
-  Riwayat.render();
-  Kelas.render();
-  Siswa.render();
-  Rekap.render();
-  Jurnal.render();
-  JurnalRiwayat.render();
-  Pengaturan.render();
+  // Hanya halaman aktif yang digambar. Halaman lain digambar saat dibuka —
+  // Router.buka() selalu memanggil render() halaman tujuan — sehingga HP
+  // tidak terbebani ratusan baris tabel & animasi sekaligus saat mulai.
+  const aktif = ($('.page.active')?.id || 'page-dashboard').replace('page-', '');
+  HALAMAN[aktif]?.().render();
+  Pengaturan.renderStat();
   UI.amatiReveal();
 }
 

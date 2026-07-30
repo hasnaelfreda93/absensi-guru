@@ -56,6 +56,12 @@ body {
 }
 
 a { color: var(--blue-mid); text-decoration: none; transition: var(--transition); }
+/* Respons sentuh: tanpa jeda ketuk-ganda & tanpa kilatan sorot bawaan */
+a, button, .btn, .seg-btn, .icon-btn, .chip, .mode-card, .belum-item,
+input, select, textarea, .ac-item {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
 a:hover { color: var(--accent); }
 img { max-width: 100%; }
 h1, h2, h3, h4 { font-weight: 700; line-height: 1.35; }
@@ -589,7 +595,8 @@ code {
 
 /* --- Pemilih menu (Absensi / Jurnal) --- */
 .mode-overlay {
-  position: fixed; inset: 0; z-index: 400;
+  /* top/right/bottom/left eksplisit — `inset` tidak dikenal browser HP lama */
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 400;
   display: grid; place-items: center; padding: 22px;
   background: var(--gradient);
   animation: pageIn .3s var(--ease-out) both;
@@ -719,7 +726,7 @@ body[data-mode="jurnal"] #navMenu li[data-untuk="absen"]  { display: none; }
 
 /* --- Modal --- */
 .modal {
-  position: fixed; inset: 0; z-index: 300;
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 300;
   display: grid; place-items: center; padding: 20px;
   background: rgba(13, 27, 75, .55); backdrop-filter: blur(4px);
   animation: pageIn .28s var(--ease-out) both;
@@ -742,6 +749,11 @@ body[data-mode="jurnal"] #navMenu li[data-untuk="absen"]  { display: none; }
 
 /* ===== 6. RESPONSIF ======================================== */
 @media (max-width: 860px) {
+  /* Efek mahal untuk GPU ponsel dimatikan: blob beranimasi & blur kaca */
+  .hero-card::before, .hero-card::after { animation: none; }
+  .hero-date { backdrop-filter: none; }
+  .modal { backdrop-filter: none; }
+
   .header-inner { flex-direction: column; align-items: flex-start; }
   .header-badge { flex-direction: row; align-items: center; width: 100%; justify-content: space-between; }
   .school-tagline { max-width: none; }
