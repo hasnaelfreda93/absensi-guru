@@ -1673,8 +1673,8 @@ const Rekap = {
     const daftar = kelasId ? Store.siswaKelas(kelasId) : Store.siswaTerurut();
     const tgl = n => `${bulan}-${String(n).padStart(2, '0')}`;
 
-    const baris = [];
-    daftar.forEach((s, i) => {
+    const hasil = [];
+    daftar.forEach(s => {
       const perTanggal = peta.get(s.kelasId);
       if (!perTanggal) return;                      // kelas ini tanpa catatan bulan itu
       const sel = [];
@@ -1687,13 +1687,22 @@ const Rekap = {
         tot[kode] = (tot[kode] || 0) + 1;
         sel.push(kode);
       }
-      const hari = tot.H + tot.S + tot.I + tot.A;
-      baris.push([baris.length + 1, s.nama, s.nis || '',
-        ...(semua ? [Store.namaKelas(s.kelasId)] : []),
-        ...sel, tot.H, tot.S, tot.I, tot.A, persen(tot.H, hari) + '%']);
+      hasil.push({ s, sel, tot, absen: tot.S + tot.I + tot.A });
     });
 
-    if (!baris.length) { UI.toast('Tidak ada siswa dengan catatan pada periode ini.', 'warn'); return; }
+    if (!hasil.length) { UI.toast('Tidak ada siswa dengan catatan pada periode ini.', 'warn'); return; }
+
+    // Nama diurutkan A–Z (bila semua kelas: dikelompokkan per kelas dahulu)
+    hasil.sort((a, b) =>
+      (semua ? bandingNama(Store.namaKelas(a.s.kelasId), Store.namaKelas(b.s.kelasId)) : 0) ||
+      bandingNama(a.s.nama, b.s.nama));
+
+    const baris = hasil.map((r, i) => {
+      const hari = r.tot.H + r.absen;
+      return [i + 1, r.s.nama, r.s.nis || '',
+        ...(semua ? [Store.namaKelas(r.s.kelasId)] : []),
+        ...r.sel, r.tot.H, r.tot.S, r.tot.I, r.tot.A, persen(r.tot.H, hari) + '%'];
+    });
 
     const header = ['No', 'Nama Siswa', 'NIS', ...(semua ? ['Kelas'] : []),
       ...Array.from({ length: jmlHari }, (_, i) => String(i + 1).padStart(2, '0')),
