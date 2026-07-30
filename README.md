@@ -11,7 +11,7 @@ dihosting di GitHub Pages.
 | Menu | Kegunaan |
 | --- | --- |
 | **Beranda** | Ringkasan hari ini, cincin persentase kehadiran bulan berjalan, daftar nama siswa yang tidak masuk, dan status pengisian tiap kelas. |
-| **Input Absensi** | Pilih tanggal dan kelas, lalu tandai H/S/I/A per nama siswa. Ada kotak **cari nama dengan saran otomatis** (ketik `int` → muncul Intan, Intania, …), ringkasan langsung di atas tabel, dan tombol *Tandai Semua Hadir*. |
+| **Input Absensi** | Pilih tanggal dan kelas, lalu tandai H/S/I/A per nama siswa. Ada kotak **cari nama dengan saran otomatis** (ketik `int` → muncul Intan, Intania, …), ringkasan langsung di atas tabel, dan tombol *Tandai Semua Hadir*. Mendukung **pengisian susulan (backdate)**: navigasi *Hari sebelumnya / Hari ini*, penanda tanggal lampau, waktu terakhir disimpan, dan panel **Tanggal Belum Lengkap** (30 hari terakhir) yang bisa diklik untuk langsung mengisi. Tanggal setelah hari ini dikunci. |
 | **Riwayat** | Semua catatan tersimpan beserta **nama siswa yang tidak masuk**, filter rentang tanggal / kelas / nama, dan dua bentuk ekspor CSV. |
 | **Data Kelas** | Tambah, ubah, hapus kelas dan wali kelas. Jumlah siswa terhitung otomatis. |
 | **Data Siswa** | Tambah siswa satu per satu, atau **impor banyak sekaligus** dari berkas CSV / tempelan daftar nama. Pencarian, ekspor CSV, dan template CSV. |
@@ -37,7 +37,9 @@ Tekan **Unduh Template CSV** untuk mendapatkan berkas contoh.
 
 ## Catatan perilaku
 
-- **Satu kelas satu catatan per tanggal** — mengisi ulang tanggal yang sama akan memperbarui catatan, bukan menggandakan.
+- **Satu kelas satu catatan per tanggal** — mengisi ulang tanggal yang sama (termasuk susulan) akan memperbarui catatan, bukan menggandakan.
+- **Tanggal setelah hari ini tidak bisa diisi** — input dikunci ke hari ini dan tanggal lampau.
+- **Ramah ponsel** — di layar sempit tabel input berubah menjadi kartu per siswa dengan tombol H/S/I/A besar yang nyaman disentuh; seluruh halaman bebas guliran mendatar.
 - Hanya siswa yang **tidak** hadir yang disimpan, sehingga data tetap ringkas: 7 kelas / 179 siswa / 14 hari ≈ 37 KB.
 - **Jumlah siswa dicuplik saat penyimpanan**, sehingga rekap bulan lalu tidak berubah ketika daftar siswa diperbarui.
 - Seluruh ekspor CSV memakai pemisah `;` dan BOM UTF-8, jadi langsung rapi saat dibuka di Excel.

@@ -78,6 +78,13 @@ const hariDari = iso => {
   return new Date(y, m - 1, d).getDay();
 };
 
+/** Cap waktu → "30/07/2026 15.24" */
+function waktuSingkat(ts) {
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2, '0');
+  return `${tanggalPendek(isoDate(d))} ${p(d.getHours())}.${p(d.getMinutes())}`;
+}
+
 const uid = () => 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
@@ -614,9 +621,28 @@ const Input = {
   draft: new Map(),
 
   init() {
+    // Absensi hanya untuk hari ini atau tanggal lampau — masa depan dikunci
+    $('#inputTanggal').max = isoDate();
     $('#inputTanggal').value = isoDate();
-    $('#inputTanggal').addEventListener('change', () => this.render());
+    $('#inputTanggal').addEventListener('change', () => {
+      if (this.tolakMasaDepan()) return;
+      this.render();
+    });
     $('#inputKelas').addEventListener('change', () => this.render());
+    $('#btnHariSebelum').addEventListener('click', () => this.geserHari(-1));
+    $('#btnHariSesudah').addEventListener('click', () => this.geserHari(1));
+    $('#btnHariIni').addEventListener('click', () => {
+      $('#inputTanggal').value = isoDate();
+      this.render();
+    });
+    $('#belumList').addEventListener('click', e => {
+      const b = e.target.closest('.belum-item');
+      if (!b) return;
+      $('#inputTanggal').value = b.dataset.tgl;
+      this.render();
+      $('#inputTanggal').closest('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      UI.toast(`Membuka ${tanggalPanjang(b.dataset.tgl)} untuk diisi susulan.`, 'info', 3600);
+    });
     $('#btnMuatUlang').addEventListener('click', () => {
       this.render();
       UI.toast('Isian dimuat ulang dari data tersimpan.', 'info');
@@ -653,6 +679,30 @@ const Input = {
   get tanggal() { return $('#inputTanggal').value || isoDate(); },
   get kelasId() { return $('#inputKelas').value; },
 
+  /** Kembalikan ke hari ini bila tanggal melewati hari ini. */
+  tolakMasaDepan() {
+    const hariIni = isoDate();
+    if (this.tanggal <= hariIni) return false;
+    $('#inputTanggal').value = hariIni;
+    UI.toast('Absensi tidak dapat diisi untuk tanggal setelah hari ini.', 'err', 3800);
+    this.render();
+    return true;
+  },
+
+  /** Geser tanggal beberapa hari; tidak pernah melewati hari ini. */
+  geserHari(n) {
+    const [y, m, d] = this.tanggal.split('-').map(Number);
+    const t = new Date(y, m - 1, d);
+    t.setDate(t.getDate() + n);
+    const baru = isoDate(t);
+    if (baru > isoDate()) {
+      UI.toast('Sudah pada hari ini — tidak bisa maju lagi.', 'warn', 2600);
+      return;
+    }
+    $('#inputTanggal').value = baru;
+    this.render();
+  },
+
   render() {
     UI.isiSelect($('#inputKelas'),
       Store.kelasTerurut().map(k => ({
@@ -662,6 +712,8 @@ const Input = {
     const tanggal = this.tanggal;
     const kelasId = this.kelasId;
     $('#inputDateLabel').textContent = tanggalPanjang(tanggal);
+    this.renderPenandaTanggal(tanggal);
+    this.renderBelum();
 
     const body = $('#absenBody');
 
@@ -691,20 +743,22 @@ const Input = {
     $('#inputGuru').value = rec?.guru || $('#inputGuru').value;
     $('#inputStatusPill').textContent = rec
       ? `Tersimpan • ${daftar.length} siswa` : `Belum diisi • ${daftar.length} siswa`;
+    $('#dateMeta').textContent = rec?.ts
+      ? `Terakhir disimpan ${waktuSingkat(rec.ts)}` : '';
 
     body.innerHTML = daftar.map((s, i) => {
       const d = this.draft.get(s.id);
       return `<tr data-siswa="${s.id}"${d.status !== 'Hadir' ? ' class="baris-absen"' : ''}>
-        <td>${i + 1}</td>
-        <td><span class="nm">${esc(s.nama)}</span>
+        <td data-l="No">${i + 1}</td>
+        <td data-l="Nama"><span class="nm">${esc(s.nama)}</span>
             ${s.jk ? `<span class="sub">${s.jk === 'P' ? 'Perempuan' : 'Laki-laki'}</span>` : ''}</td>
-        <td>${esc(s.nis || '—')}</td>
-        <td><div class="seg">${STATUS.map(st => `
+        <td data-l="NIS">${esc(s.nis || '—')}</td>
+        <td data-l="Kehadiran"><div class="seg">${STATUS.map(st => `
           <button type="button" class="seg-btn${d.status === st.key ? ' on' : ''}"
                   data-s="${st.key}" data-siswa="${s.id}"
                   title="${st.key}" aria-label="${esc(s.nama)}: ${st.key}"
                   aria-pressed="${d.status === st.key}">${st.kode}</button>`).join('')}</div></td>
-        <td><input type="text" class="ket-input" data-siswa="${s.id}"
+        <td data-l="Keterangan"><input type="text" class="ket-input" data-siswa="${s.id}"
               value="${esc(d.ket)}" placeholder="—"
               ${d.status === 'Hadir' ? 'disabled' : ''}></td>
       </tr>`;
@@ -712,6 +766,71 @@ const Input = {
 
     UI.bertahap(body);
     this.renderRingkasan();
+  },
+
+  /** Penanda hari ini / tanggal lampau / bukan hari sekolah. */
+  renderPenandaTanggal(tanggal) {
+    const hariIni = isoDate();
+    const flag = $('#dateFlag');
+    const hariSekolah = Store.setting.hariSekolah || [];
+    const libur = hariSekolah.length && !hariSekolah.includes(hariDari(tanggal));
+
+    if (libur) {
+      flag.className = 'date-flag f-libur';
+      flag.innerHTML = '<i class="fa-solid fa-mug-hot"></i> Bukan hari sekolah';
+      flag.hidden = false;
+    } else if (tanggal === hariIni) {
+      flag.className = 'date-flag f-kini';
+      flag.innerHTML = '<i class="fa-solid fa-circle-check"></i> Hari ini';
+      flag.hidden = false;
+    } else {
+      flag.className = 'date-flag f-lampau';
+      flag.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> Tanggal lampau — pengisian susulan';
+      flag.hidden = false;
+    }
+
+    // Tidak boleh maju melewati hari ini
+    $('#btnHariSesudah').disabled = tanggal >= hariIni;
+  },
+
+  /** Hari sekolah 30 hari terakhir yang masih ada kelas belum terisi. */
+  renderBelum() {
+    const host = $('#belumList');
+    const pill = $('#belumPill');
+    const jmlKelas = Store.kelas.length;
+
+    if (!jmlKelas) {
+      host.innerHTML = '';
+      pill.textContent = '0 kelas';
+      return;
+    }
+
+    const hariSekolah = Store.setting.hariSekolah || [];
+    const kurang = [];
+    const d = new Date();
+
+    for (let i = 0; i < 30; i++) {
+      const tgl = isoDate(d);
+      if (!hariSekolah.length || hariSekolah.includes(d.getDay())) {
+        const terisi = new Set(Store.absenTanggal(tgl).map(a => a.kelasId)).size;
+        if (terisi < jmlKelas) kurang.push({ tgl, terisi, hari: HARI[d.getDay()], tanggalNum: d.getDate() });
+      }
+      d.setDate(d.getDate() - 1);
+    }
+
+    pill.textContent = kurang.length ? `${kurang.length} tanggal belum lengkap` : 'Semua lengkap';
+
+    host.innerHTML = kurang.length
+      ? kurang.map(k => `
+          <button type="button" class="belum-item" data-tgl="${k.tgl}">
+            <span class="bi-tgl"><b>${k.tanggalNum}</b><span>${BULAN[Number(k.tgl.slice(5, 7)) - 1].slice(0, 3)}</span></span>
+            <span class="bi-info">
+              <span class="bi-hari">${k.hari}, ${tanggalPendek(k.tgl)}</span>
+              <span class="bi-kurang">${jmlKelas - k.terisi} dari ${jmlKelas} kelas belum diisi</span>
+            </span>
+          </button>`).join('')
+      : `<div class="empty"><i class="fa-solid fa-circle-check" style="color:#10b981"></i>
+          <strong>Lengkap</strong>Seluruh hari sekolah dalam 30 hari terakhir sudah terisi.</div>`;
   },
 
   /** Ubah status satu siswa lalu perbarui tampilan baris tersebut. */
@@ -785,6 +904,8 @@ const Input = {
   simpan() {
     const kelasId = this.kelasId;
     const tanggal = this.tanggal;
+    if (tanggal > isoDate()) { this.tolakMasaDepan(); return; }
+
     const daftar = Store.siswaKelas(kelasId);
     if (!daftar.length) { UI.toast('Belum ada siswa pada kelas ini.', 'warn'); return; }
 
@@ -804,8 +925,8 @@ const Input = {
     Store.simpanAbsen();
 
     const hadir = daftar.length - entri.length;
-    UI.toast(`Absensi ${Store.namaKelas(kelasId)} — ${tanggalPanjang(tanggal)} tersimpan. ` +
-             `Hadir ${hadir}, tidak masuk ${entri.length}.`, 'ok', 4200);
+    UI.toast(`${lama ? 'Diperbarui' : 'Tersimpan'}: ${Store.namaKelas(kelasId)} — ` +
+             `${tanggalPanjang(tanggal)}. Hadir ${hadir}, tidak masuk ${entri.length}.`, 'ok', 4200);
     this.render();
     Pengaturan.renderStat();
   },

@@ -166,12 +166,20 @@
         <div class="field"><label for="inputGuru">Diisi oleh (opsional)</label><input type="text" id="inputGuru" placeholder="Nama guru piket"></div>
       </div>
 
+      <div class="date-nav">
+        <button class="btn btn-sm btn-ghost" id="btnHariSebelum"><i class="fa-solid fa-chevron-left"></i> Hari sebelumnya</button>
+        <button class="btn btn-sm btn-ghost" id="btnHariIni"><i class="fa-solid fa-calendar-check"></i> Hari ini</button>
+        <button class="btn btn-sm btn-ghost" id="btnHariSesudah">Hari berikutnya <i class="fa-solid fa-chevron-right"></i></button>
+        <span class="date-flag" id="dateFlag" hidden></span>
+        <span class="date-meta" id="dateMeta"></span>
+      </div>
+
       <div class="sum-row" id="sumRow"></div>
 
       <p class="hint"><i class="fa-solid fa-circle-info"></i>
         Semua siswa dianggap <strong>Hadir</strong> secara bawaan. Klik <strong>S</strong> (sakit), <strong>I</strong> (izin), atau <strong>A</strong> (alpa) hanya untuk siswa yang tidak masuk, lalu tekan <em>Simpan Absensi</em>.</p>
 
-      <div class="table-scroll">
+      <div class="table-scroll ts-absen">
         <table class="tbl tbl-absen">
           <thead><tr>
             <th>#</th><th>Nama Siswa</th><th>NIS</th><th>Kehadiran</th><th>Keterangan</th>
@@ -185,6 +193,18 @@
         <button class="btn btn-ghost" id="btnSemuaHadir"><i class="fa-solid fa-check-double"></i> Tandai Semua Hadir</button>
         <button class="btn btn-ghost" id="btnMuatUlang"><i class="fa-solid fa-rotate-left"></i> Muat Ulang</button>
       </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="fa-solid fa-calendar-xmark"></i> Tanggal Belum Lengkap</h3>
+      <span class="pill" id="belumPill">&mdash;</span>
+    </div>
+    <div class="card-body">
+      <p class="hint"><i class="fa-solid fa-circle-info"></i>
+        Hari sekolah dalam 30 hari terakhir yang masih ada kelas belum terisi. Klik untuk membuka tanggalnya dan mengisi susulan.</p>
+      <div class="belum-list" id="belumList"></div>
     </div>
   </div>
 </section>

@@ -51,6 +51,8 @@ body {
   font-size: 15px;
   line-height: 1.75;
   -webkit-font-smoothing: antialiased;
+  /* Nama panjang tidak boleh memaksa lebar halaman di ponsel */
+  overflow-wrap: break-word;
 }
 
 a { color: var(--blue-mid); text-decoration: none; transition: var(--transition); }
@@ -186,6 +188,7 @@ code {
 .btn:hover { transform: translateY(-2px); }
 .btn:active { transform: translateY(0) scale(.97); }
 .btn:focus-visible { outline: 3px solid rgba(37, 99, 235, .35); outline-offset: 2px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
 .btn-sm { padding: 8px 15px; font-size: 12.5px; }
 
 .btn-primary { background: var(--gradient); color: #fff; box-shadow: 0 6px 18px rgba(13, 27, 75, .25); }
@@ -460,6 +463,49 @@ code {
 .ket-input:focus { outline: 0; border-color: var(--blue-mid); background: #fff; box-shadow: 0 0 0 4px rgba(37, 99, 235, .13); }
 .ket-input:disabled { opacity: .45; cursor: not-allowed; }
 
+/* --- Navigasi tanggal --- */
+.date-nav {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 9px;
+  padding: 12px 0 16px; border-bottom: 1px dashed var(--border); margin-bottom: 16px;
+}
+.date-flag {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 14px; border-radius: var(--radius-pill);
+  font-size: 11.8px; font-weight: 700; white-space: nowrap;
+}
+.date-flag[hidden] { display: none; }
+.date-flag.f-kini   { background: #d1fae5; color: #047857; }
+.date-flag.f-lampau { background: #fef3c7; color: #b45309; }
+.date-flag.f-libur  { background: var(--blue-pale); color: var(--blue); }
+.date-meta { margin-left: auto; font-size: 11.8px; color: var(--muted); font-weight: 600; }
+
+/* --- Panel tanggal belum lengkap --- */
+.belum-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px; margin-top: 14px;
+}
+.belum-item {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  font-family: inherit; text-align: left; cursor: pointer;
+  padding: 12px 14px; border: 1.5px solid var(--border);
+  border-radius: var(--radius); background: #fff;
+  transition: var(--transition);
+}
+.belum-item:hover {
+  border-color: var(--accent); background: #fffbeb;
+  transform: translateY(-2px); box-shadow: var(--card-shadow);
+}
+.belum-item:focus-visible { outline: 3px solid rgba(37, 99, 235, .35); outline-offset: 2px; }
+.bi-tgl {
+  flex-shrink: 0; width: 46px; text-align: center; line-height: 1.15;
+  border-right: 1px solid var(--border); padding-right: 11px;
+}
+.bi-tgl b { display: block; font-size: 19px; font-weight: 800; color: var(--primary); }
+.bi-tgl span { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+.bi-info { min-width: 0; }
+.bi-hari { font-size: 12.8px; font-weight: 700; color: var(--primary); }
+.bi-kurang { font-size: 11.5px; color: #b45309; font-weight: 600; }
+
 /* --- Baris ringkasan di atas tabel --- */
 .sum-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
 .sum-item {
@@ -654,11 +700,82 @@ code {
   .nav-link { width: 100%; padding: 13px 8px; }
   .nav-link::after { left: 8px; right: auto; width: 26px; }
 }
+/* Tabel input harian menjadi kartu bertumpuk agar nyaman di ponsel */
+@media (max-width: 720px) {
+  .tbl-absen { min-width: 0; display: block; }
+  .tbl-absen thead { display: none; }
+  .tbl-absen tbody { display: block; }
+  .tbl-absen tr {
+    display: grid; grid-template-columns: 1fr auto; gap: 4px 10px;
+    padding: 13px 15px; margin-bottom: 10px;
+    border: 1.5px solid var(--border); border-radius: var(--radius);
+    background: #fff !important;
+  }
+  .tbl-absen tr.baris-absen { border-color: #fcd34d; background: #fffdf5 !important; }
+  /* Spesifisitas disamakan dengan `.tbl tbody td` agar garis sel benar-benar hilang */
+  .tbl-absen tbody td { display: block; border: 0; padding: 0; }
+
+  /* Nomor urut menempel di sudut, NIS di bawah nama */
+  .tbl-absen td[data-l="No"] {
+    grid-column: 2; grid-row: 1; justify-self: end;
+    font-size: 11px; font-weight: 700; color: var(--muted);
+  }
+  .tbl-absen td[data-l="No"]::before { content: '#'; }
+  .tbl-absen td[data-l="Nama"] { grid-column: 1; grid-row: 1; }
+  .tbl-absen td[data-l="NIS"] {
+    grid-column: 1 / -1; grid-row: 2; font-size: 11.5px; color: var(--muted);
+  }
+  .tbl-absen td[data-l="NIS"]::before { content: 'NIS '; font-weight: 700; }
+  .tbl-absen td[data-l="Kehadiran"] { grid-column: 1 / -1; grid-row: 3; padding-top: 8px; }
+  .tbl-absen td[data-l="Keterangan"] { grid-column: 1 / -1; grid-row: 4; padding-top: 6px; }
+
+  /* Sasaran sentuh lebih lega */
+  .tbl-absen .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; width: 100%; }
+  .tbl-absen .seg-btn { width: 100%; height: 42px; font-size: 14px; }
+  .tbl-absen .ket-input { min-width: 0; }
+
+  /* Bingkai pembungkus tidak diperlukan lagi saat berbentuk kartu */
+  .ts-absen { border: 0; overflow: visible; border-radius: 0; }
+}
+
 @media (max-width: 640px) {
   body { font-size: 14.5px; }
   .card-body, .card-head { padding: 16px; }
   .setting-stats { grid-template-columns: 1fr; }
   .form-actions .btn, .table-actions .btn { flex: 1 1 auto; }
+
+  .hero-actions .btn { width: 100%; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 11px; }
+  .stat-card { padding: 13px; gap: 11px; }
+  .sc-icon { width: 38px; height: 38px; font-size: 14px; border-radius: 11px; }
+  .sc-num { font-size: 1.45rem; }
+  .sc-label { font-size: 11px; }
+
+  .ring-wrap { justify-content: center; }
+  .ring { width: 128px; height: 128px; }
+  .ring-inner { width: 96px; height: 96px; }
+
+  .date-nav { gap: 7px; }
+  .date-nav .btn { flex: 1 1 auto; }
+  .date-meta { margin-left: 0; width: 100%; }
+  .belum-list { grid-template-columns: 1fr; }
+  .sum-item { padding: 7px 13px; font-size: 12px; }
+  .nama-chips { max-width: none; }
+
+  .badge-app { font-size: 11.5px; padding: 6px 13px; }
+  .school-logo { height: 54px; width: 54px; }
+  .school-name { font-size: .96rem; }
+  .school-tagline { font-size: 11px; }
+  .footer-inner { flex-direction: column; text-align: center; }
+}
+
+/* Ponsel sempit: sisi kanan-kiri dirapatkan */
+@media (max-width: 420px) {
+  .container { padding: 0 12px; }
+  .card-body, .card-head { padding: 14px; }
+  .main-wrap { padding: 20px 12px 40px; }
+  .stat-grid { grid-template-columns: 1fr; }
+  .hero-text h1 { font-size: 1.28rem; }
 }
 
 /* ===== CETAK =============================================== */
