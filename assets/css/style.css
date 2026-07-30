@@ -69,20 +69,6 @@ code {
 
 /* ===== 2. LAYOUT DASAR ===================================== */
 
-/* --- Topbar --- */
-.topbar-strip {
-  background: var(--gradient);
-  color: rgba(255, 255, 255, .82);
-  font-size: 12.5px;
-  padding: 7px 0;
-  letter-spacing: .3px;
-}
-.topbar-inner { display: flex; flex-wrap: wrap; gap: 6px 18px; justify-content: space-between; align-items: center; }
-.topbar-strip span { display: inline-flex; align-items: center; gap: 6px; }
-.topbar-right { display: flex; align-items: center; gap: 8px; }
-.topbar-strip i { font-size: 11px; opacity: .8; }
-.topbar-divider { opacity: .3; }
-
 /* --- Header --- */
 .site-header {
   background: var(--white);
@@ -154,34 +140,11 @@ code {
 .st-sub { font-size: .8rem; font-weight: 600; color: var(--muted); }
 
 /* --- Footer --- */
-.site-footer { background: var(--gradient); color: rgba(255, 255, 255, .78); margin-top: 40px; }
-.footer-grid {
-  display: grid; grid-template-columns: 1.6fr 1.3fr 1fr 1fr;
-  gap: 30px; padding: 44px 18px 34px;
-}
-.foot-brand { display: flex; gap: 14px; }
-.foot-brand img { height: 62px; width: 62px; object-fit: contain; flex-shrink: 0; }
-.foot-brand strong { color: #fff; font-size: 1rem; display: block; letter-spacing: .3px; }
-.foot-brand p { font-size: 12.5px; margin-top: 6px; line-height: 1.7; }
-.foot-col h4 {
-  color: #fff; font-size: .95rem; margin-bottom: 14px; padding-bottom: 10px;
-  border-bottom: 2px solid rgba(245, 158, 11, .55); display: inline-block;
-}
-.foot-col ul { list-style: none; font-size: 12.8px; }
-.foot-col li { display: flex; gap: 9px; padding: 5px 0; align-items: baseline; }
-.foot-col li i { color: var(--accent); font-size: 11.5px; margin-top: 5px; }
-.foot-col li span { margin-left: auto; color: #fff; font-weight: 600; white-space: nowrap; }
-.foot-col a { color: rgba(255, 255, 255, .78); }
-.foot-col a:hover { color: var(--accent); }
-.foot-nav a { display: inline-block; position: relative; }
-.foot-nav a::before { content: '\203A'; margin-right: 7px; color: var(--accent); }
-.foot-nav a:hover { transform: translateX(3px); }
-.footer-bottom {
-  background: rgba(0, 0, 0, .22); font-size: 12px;
-  padding: 15px 0; text-align: center;
-}
-.footer-bottom strong { color: #fff; }
-.fb-sep { opacity: .35; margin: 0 8px; }
+.site-footer { background: var(--gradient); color: rgba(255, 255, 255, .8); margin-top: 40px; }
+.footer-inner { display: flex; align-items: center; gap: 15px; padding: 22px 18px; }
+.footer-inner img { height: 52px; width: 52px; object-fit: contain; flex-shrink: 0; }
+.footer-inner strong { color: #fff; display: block; letter-spacing: .4px; font-size: .95rem; }
+.footer-inner span { font-size: 12px; line-height: 1.6; display: block; }
 
 /* ===== 3. KOMPONEN ========================================= */
 
@@ -320,7 +283,7 @@ code {
 .tbl tbody tr:last-child td { border-bottom: 0; }
 .tbl .nm { font-weight: 700; color: var(--primary); }
 .tbl .sub { display: block; font-size: 11.3px; color: var(--muted); font-weight: 500; }
-.tbl-rekap { min-width: 900px; }
+.tbl-rekap { min-width: 820px; }
 .tbl-rekap td, .tbl-rekap th { text-align: center; }
 .tbl-rekap td:nth-child(2), .tbl-rekap th:nth-child(2),
 .tbl-rekap td:nth-child(3), .tbl-rekap th:nth-child(3) { text-align: left; }
@@ -432,10 +395,10 @@ code {
 .sc-label { font-size: 11.8px; font-weight: 600; color: var(--muted); }
 .sc-total { --sc: var(--blue-mid); }
 .sc-hadir { --sc: var(--success); }
-.sc-telat { --sc: var(--accent); }
-.sc-izin  { --sc: var(--accent3); }
-.sc-dinas { --sc: var(--accent2); }
+.sc-sakit { --sc: var(--accent3); }
+.sc-izin  { --sc: var(--accent2); }
 .sc-alpa  { --sc: var(--danger); }
+.sc-belum { --sc: var(--accent); }
 
 /* --- Dua kolom --- */
 .dash-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 22px; align-items: start; }
@@ -464,37 +427,49 @@ code {
 .legend .lg-name { color: var(--muted); font-weight: 600; }
 .legend .lg-val { margin-left: auto; font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums; }
 
-/* --- Absen cepat --- */
-.quick-list { display: grid; gap: 10px; margin-top: 14px; }
-.quick-item {
-  display: flex; align-items: center; gap: 13px; flex-wrap: wrap;
-  padding: 12px 15px; border: 1px solid var(--border);
-  border-radius: var(--radius); background: #fbfdff;
-  transition: var(--transition);
+/* --- Tabel input absensi --- */
+.tbl-input { min-width: 780px; }
+.tbl-input td, .tbl-input th { text-align: center; }
+.tbl-input td:first-child, .tbl-input th:first-child,
+.tbl-input td:last-child, .tbl-input th:last-child { text-align: left; }
+.tbl-input .th-s { background: linear-gradient(180deg, #6d28d9, #8b5cf6); }
+.tbl-input .th-i { background: linear-gradient(180deg, #0e7490, #06b6d4); }
+.tbl-input .th-a { background: linear-gradient(180deg, #b91c1c, #ef4444); }
+
+.num {
+  width: 62px; text-align: center; font-family: inherit;
+  font-size: 14.5px; font-weight: 700; color: var(--primary);
+  padding: 7px 4px; border: 1.5px solid var(--border);
+  border-radius: 10px; background: #fbfdff;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s var(--ease-out);
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
-.quick-item:hover { border-color: var(--blue-light); background: #fff; box-shadow: var(--card-shadow); }
-.qi-avatar {
-  width: 38px; height: 38px; flex-shrink: 0; border-radius: 50%;
-  display: grid; place-items: center; font-weight: 800; font-size: 13px;
-  background: var(--gradient2); color: #fff;
+.num::-webkit-outer-spin-button, .num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.num:hover { border-color: #cbd5e1; }
+.num:focus { outline: 0; background: #fff; transform: scale(1.06); }
+.num[data-f="sakit"]:focus { border-color: var(--accent3); box-shadow: 0 0 0 4px rgba(139, 92, 246, .16); }
+.num[data-f="izin"]:focus  { border-color: var(--accent2); box-shadow: 0 0 0 4px rgba(6, 182, 212, .16); }
+.num[data-f="alpa"]:focus  { border-color: var(--danger);  box-shadow: 0 0 0 4px rgba(239, 68, 68, .16); }
+.num.isi { background: #fff; border-color: currentColor; }
+.num[data-f="sakit"].isi { color: #6d28d9; background: #f5f3ff; border-color: #c4b5fd; }
+.num[data-f="izin"].isi  { color: #0e7490; background: #ecfeff; border-color: #a5f3fc; }
+.num[data-f="alpa"].isi  { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+.num.lebih { border-color: var(--danger) !important; background: #fef2f2 !important; animation: shake .35s ease; }
+
+.ket-input {
+  width: 100%; min-width: 150px; font-family: inherit; font-size: 12.8px;
+  padding: 7px 11px; border: 1.5px solid var(--border);
+  border-radius: 10px; background: #fbfdff; color: var(--text);
+  transition: border-color .2s ease, box-shadow .2s ease;
 }
-.qi-info { min-width: 130px; flex: 1; }
-.qi-name { font-weight: 700; color: var(--primary); font-size: 13.6px; }
-.qi-role { font-size: 11.5px; color: var(--muted); }
-.qi-btns { display: flex; flex-wrap: wrap; gap: 6px; }
-.qbtn {
-  font-family: inherit; font-size: 11.6px; font-weight: 700; cursor: pointer;
-  padding: 6px 13px; border-radius: var(--radius-pill);
-  border: 1.5px solid var(--border); background: #fff; color: var(--muted);
-  transition: var(--transition);
+.ket-input:focus { outline: 0; border-color: var(--blue-mid); background: #fff; box-shadow: 0 0 0 4px rgba(37, 99, 235, .13); }
+
+.hadir-cell { font-weight: 800; font-size: 15px; color: var(--success); font-variant-numeric: tabular-nums; }
+.tbl-input tbody tr.tersimpan td:first-child .nm::after {
+  content: '\f00c'; font-family: 'Font Awesome 6 Free'; font-weight: 900;
+  color: var(--success); font-size: 10px; margin-left: 7px;
 }
-.qbtn:hover { transform: translateY(-2px); border-color: currentColor; }
-.qbtn[data-status="Hadir"]:hover      { background: #d1fae5; color: #047857; }
-.qbtn[data-status="Terlambat"]:hover  { background: #fef3c7; color: #b45309; }
-.qbtn[data-status="Izin"]:hover       { background: #dbeafe; color: #1d4ed8; }
-.qbtn[data-status="Sakit"]:hover      { background: #ede9fe; color: #6d28d9; }
-.qbtn[data-status="Dinas Luar"]:hover { background: #cffafe; color: #0e7490; }
-.qbtn[data-status="Alpa"]:hover       { background: #fee2e2; color: #b91c1c; }
 
 /* --- Pengaturan --- */
 .setting-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0 18px; }
@@ -512,17 +487,8 @@ code {
 .guide strong { color: var(--primary); }
 
 /* --- Area cetak --- */
-.print-head, .print-title { display: none; }
+.print-head { display: none; }
 .legend-note { margin-top: 14px; }
-.sign-area {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 30px;
-  margin-top: 26px; font-size: 12.8px; text-align: center;
-}
-.sign-area > div { display: grid; gap: 2px; justify-items: center; }
-.sign-area span { color: var(--muted); }
-.sign-area strong { color: var(--primary); }
-.sign-line { display: block; height: 52px; }
-.sign-area > div > span:last-child { border-top: 1.5px solid var(--text); padding-top: 4px; min-width: 190px; font-weight: 700; color: var(--text); }
 
 /* ===== 5. ANIMASI & TRANSISI =============================== */
 .page { display: none; }
@@ -555,6 +521,11 @@ code {
 @keyframes flash {
   0%   { background: #fef3c7; }
   100% { background: transparent; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-4px); }
+  75%      { transform: translateX(4px); }
 }
 
 /* Baris tabel & kartu masuk bertahap */
@@ -615,9 +586,6 @@ code {
 }
 
 /* ===== 6. RESPONSIF ======================================== */
-@media (max-width: 1080px) {
-  .footer-grid { grid-template-columns: 1fr 1fr; }
-}
 @media (max-width: 860px) {
   .header-inner { flex-direction: column; align-items: flex-start; }
   .header-badge { flex-direction: row; align-items: center; width: 100%; justify-content: space-between; }
@@ -639,14 +607,12 @@ code {
   body { font-size: 14.5px; }
   .card-body, .card-head { padding: 16px; }
   .setting-stats { grid-template-columns: 1fr; }
-  .sign-area { grid-template-columns: 1fr; gap: 22px; }
-  .footer-grid { grid-template-columns: 1fr; gap: 26px; padding: 32px 18px 26px; }
   .form-actions .btn, .table-actions .btn { flex: 1 1 auto; }
 }
 
 /* ===== CETAK =============================================== */
 @media print {
-  .topbar-strip, .site-header, .site-nav, .site-footer,
+  .site-header, .site-nav, .site-footer,
   .filter-bar, .card-head, .toast-host, .modal, .section-title { display: none !important; }
   body { background: #fff; font-size: 11px; }
   .main-wrap { padding: 0; }
@@ -664,11 +630,8 @@ code {
   }
   .print-head img { height: 64px; width: 64px; }
   .print-head strong { display: block; font-size: 15px; color: #0d1b4b; }
-  .print-head span { display: block; font-size: 10px; }
-  .print-title { display: block !important; text-align: center; font-size: 13px; margin-bottom: 12px; }
-  .print-title span { font-size: 11px; font-weight: 600; }
+  .print-head span { display: block; font-size: 11px; }
   .table-actions, .hint { display: none !important; }
   .legend-note { display: block !important; background: none; border: 0; padding: 6px 0; font-size: 9.5px; }
-  .sign-area { margin-top: 22px; }
   @page { size: A4 landscape; margin: 12mm; }
 }

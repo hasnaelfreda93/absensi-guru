@@ -1,66 +1,59 @@
 /* ============================================================
-   ABSENSI GURU — SDI ASSURYANIYAH BEKASI
-   Aplikasi satu halaman (SPA) tanpa framework, offline-first.
+   ABSENSI SISWA — SDI ASSURYANIYAH
+   Guru mengisi jumlah Sakit / Izin / Alpa tiap kelas per hari.
+   Hadir dihitung otomatis: jumlah siswa − (S + I + A).
+   Aplikasi satu halaman, tanpa framework, offline-first.
    ============================================================
    Struktur berkas:
-     1.  KONSTANTA          — daftar status, nama hari/bulan, warna
-     2.  UTIL               — bantuan tanggal, teks, angka, CSV
-     3.  STORE              — pembacaan & penyimpanan localStorage
-     4.  UI                 — toast, modal konfirmasi, riak, animasi
-     5.  ROUTER             — perpindahan halaman yang mulus
-     6.  HAL. DASHBOARD     — ringkasan hari ini & bulan ini
-     7.  HAL. ABSENSI       — form, absen cepat, riwayat, filter
-     8.  HAL. DATA GURU     — CRUD guru & tenaga kependidikan
-     9.  HAL. REKAP         — rekapitulasi bulanan, ekspor, cetak
-     10. HAL. PENGATURAN    — identitas, jam kerja, cadangan data
-     11. INIT               — perakitan seluruh modul
+     1.  KONSTANTA       — kategori absensi, nama hari & bulan
+     2.  UTIL            — bantuan tanggal, teks, CSV, unduhan
+     3.  STORE           — baca/simpan localStorage
+     4.  UI              — toast, modal, riak, animasi angka & baris
+     5.  ROUTER          — perpindahan halaman yang mulus
+     6.  HAL. BERANDA    — ringkasan hari ini & bulan berjalan
+     7.  HAL. INPUT      — tabel isian semua kelas untuk satu tanggal
+     8.  HAL. RIWAYAT    — catatan tersimpan, filter, ekspor
+     9.  HAL. DATA KELAS — CRUD kelas & jumlah siswa
+     10. HAL. REKAP      — rekapitulasi bulanan, ekspor, cetak
+     11. HAL. PENGATURAN — hari sekolah, cadangan data
+     12. INIT            — perakitan seluruh modul
    ============================================================ */
 'use strict';
 
 /* ===== 1. KONSTANTA ======================================== */
 
-const STATUS = [
-  { key: 'Hadir',      badge: 'b-hadir',     color: '#10b981', kode: 'H'  },
-  { key: 'Terlambat',  badge: 'b-terlambat', color: '#f59e0b', kode: 'T'  },
-  { key: 'Izin',       badge: 'b-izin',      color: '#2563eb', kode: 'I'  },
-  { key: 'Sakit',      badge: 'b-sakit',     color: '#8b5cf6', kode: 'S'  },
-  { key: 'Dinas Luar', badge: 'b-dinas',     color: '#06b6d4', kode: 'DL' },
-  { key: 'Cuti',       badge: 'b-cuti',      color: '#64748b', kode: 'C'  },
-  { key: 'Alpa',       badge: 'b-alpa',      color: '#ef4444', kode: 'A'  },
+/** Kategori ketidakhadiran yang diisi guru. */
+const KATEGORI = [
+  { key: 'sakit', label: 'Sakit', kode: 'S', color: '#8b5cf6' },
+  { key: 'izin',  label: 'Izin',  kode: 'I', color: '#06b6d4' },
+  { key: 'alpa',  label: 'Alpa',  kode: 'A', color: '#ef4444' },
 ];
 
-/** Status yang dihitung sebagai kehadiran efektif. */
-const STATUS_HADIR = ['Hadir', 'Terlambat', 'Dinas Luar'];
-
-/** Status pada panel Absen Cepat. */
-const STATUS_CEPAT = ['Hadir', 'Terlambat', 'Izin', 'Sakit', 'Dinas Luar', 'Alpa'];
+const WARNA_HADIR = '#10b981';
 
 const HARI  = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
                'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-
-const statusMeta = key => STATUS.find(s => s.key === key) || STATUS[0];
 
 /* ===== 2. UTIL ============================================= */
 
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-/** Tanggal lokal dalam format YYYY-MM-DD (tanpa pergeseran zona waktu). */
+/** Tanggal lokal YYYY-MM-DD (tanpa pergeseran zona waktu). */
 function isoDate(d = new Date()) {
   const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-/** Bulan lokal dalam format YYYY-MM. */
+/** Bulan lokal YYYY-MM. */
 const isoMonth = (d = new Date()) => isoDate(d).slice(0, 7);
 
 /** "2026-07-30" → "Kamis, 30 Juli 2026" */
 function tanggalPanjang(iso) {
   if (!iso) return '—';
   const [y, m, d] = iso.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  return `${HARI[dt.getDay()]}, ${d} ${BULAN[m - 1]} ${y}`;
+  return `${HARI[new Date(y, m - 1, d).getDay()]}, ${d} ${BULAN[m - 1]} ${y}`;
 }
 
 /** "2026-07-30" → "30/07/2026" */
@@ -87,13 +80,11 @@ const uid = () => 'id' + Date.now().toString(36) + Math.random().toString(36).sl
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const inisial = nama => String(nama || '?').trim().split(/\s+/)
-  .filter(w => /^[A-Za-z]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+/** Bilangan bulat non-negatif dari nilai input apa pun. */
+const num = v => Math.max(0, parseInt(v, 10) || 0);
 
-/** Bandingkan dua jam "HH:MM"; true bila a lebih besar dari b. */
-const jamLebih = (a, b) => !!a && !!b && a > b;
-
-const jamSekarang = () => new Date().toTimeString().slice(0, 5);
+/** Persentase dibulatkan, aman terhadap pembagi nol. */
+const persen = (bagian, total) => total > 0 ? Math.round((bagian / total) * 100) : 0;
 
 /** Unduh berkas dari string di sisi klien. */
 function unduh(namaFile, isi, mime = 'text/plain;charset=utf-8') {
@@ -105,7 +96,7 @@ function unduh(namaFile, isi, mime = 'text/plain;charset=utf-8') {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-/** Susun CSV ber-BOM dengan pemisah ";" agar rapi di Excel Indonesia. */
+/** CSV ber-BOM dengan pemisah ";" agar rapi dibuka di Excel Indonesia. */
 function buatCSV(header, baris) {
   const sel = v => {
     const s = String(v ?? '');
@@ -116,29 +107,27 @@ function buatCSV(header, baris) {
 
 /* ===== 3. STORE ============================================ */
 
+/*  Bentuk data
+    kelas : { id, nama, wali, jumlah }
+    absen : { id, tanggal, kelasId, total, sakit, izin, alpa, keterangan, guru, ts }
+            `total` adalah cuplikan jumlah siswa saat pencatatan, agar rekap
+            lama tidak berubah ketika jumlah siswa kelas diperbarui.          */
+
 const Store = {
-  KEY_GURU: 'ag_guru_v1',
-  KEY_ABSEN: 'ag_absen_v1',
-  KEY_SET: 'ag_setting_v1',
+  KEY_KELAS: 'as_kelas_v1',
+  KEY_ABSEN: 'as_absen_v1',
+  KEY_SET: 'as_setting_v1',
 
   SETTING_DEFAULT: {
-    namaSekolah: 'SDI ASSURYANIYAH BEKASI',
-    npsn: '',
-    tahunAjaran: '2026/2027',
-    semester: 'Ganjil',
-    jamMasuk: '07:00',
-    jamKeluar: '15:00',
-    kepsek: '',
-    operator: '',
-    hariKerja: [1, 2, 3, 4, 5, 6], // Senin–Sabtu
+    hariSekolah: [1, 2, 3, 4, 5, 6], // Senin–Sabtu
   },
 
-  guru: [],
+  kelas: [],
   absen: [],
   setting: {},
 
   muat() {
-    this.guru    = this._baca(this.KEY_GURU, []);
+    this.kelas   = this._baca(this.KEY_KELAS, []);
     this.absen   = this._baca(this.KEY_ABSEN, []);
     this.setting = { ...this.SETTING_DEFAULT, ...this._baca(this.KEY_SET, {}) };
   },
@@ -155,37 +144,52 @@ const Store = {
   _tulis(key, val) {
     try {
       localStorage.setItem(key, JSON.stringify(val));
-      return true;
     } catch {
-      UI.toast('Penyimpanan peramban penuh. Unduh cadangan lalu hapus sebagian data.', 'err');
-      return false;
+      UI.toast('Penyimpanan browser penuh. Unduh cadangan lalu hapus sebagian data.', 'err');
     }
   },
 
-  simpanGuru()    { this._tulis(this.KEY_GURU, this.guru); },
+  simpanKelas()   { this._tulis(this.KEY_KELAS, this.kelas); },
   simpanAbsen()   { this._tulis(this.KEY_ABSEN, this.absen); },
   simpanSetting() { this._tulis(this.KEY_SET, this.setting); },
 
-  cariGuru(id) { return this.guru.find(g => g.id === id) || null; },
-  namaGuru(id) { return this.cariGuru(id)?.nama || '(guru terhapus)'; },
+  cariKelas(id) { return this.kelas.find(k => k.id === id) || null; },
+  namaKelas(id) { return this.cariKelas(id)?.nama || '(kelas terhapus)'; },
 
-  /** Catatan absensi seorang guru pada tanggal tertentu. */
-  absenPada(guruId, tanggal) {
-    return this.absen.find(a => a.guruId === guruId && a.tanggal === tanggal) || null;
+  /** Kelas terurut menurut nama, mengikuti urutan alami (I, II, … X). */
+  kelasTerurut() {
+    return [...this.kelas].sort((a, b) =>
+      a.nama.localeCompare(b.nama, 'id', { numeric: true, sensitivity: 'base' }));
+  },
+
+  /** Catatan satu kelas pada tanggal tertentu. */
+  absenPada(kelasId, tanggal) {
+    return this.absen.find(a => a.kelasId === kelasId && a.tanggal === tanggal) || null;
+  },
+
+  /** Seluruh catatan pada satu tanggal. */
+  absenTanggal(tanggal) {
+    return this.absen.filter(a => a.tanggal === tanggal);
   },
 
   /** Absensi terurut: tanggal terbaru lebih dahulu. */
   absenTerurut() {
     return [...this.absen].sort((a, b) =>
-      b.tanggal.localeCompare(a.tanggal) || (b.ts || 0) - (a.ts || 0));
+      b.tanggal.localeCompare(a.tanggal) ||
+      Store.namaKelas(a.kelasId).localeCompare(Store.namaKelas(b.kelasId), 'id', { numeric: true }));
   },
 
+  totalSiswa() { return this.kelas.reduce((t, k) => t + num(k.jumlah), 0); },
+
   ukuran() {
-    const n = [this.KEY_GURU, this.KEY_ABSEN, this.KEY_SET]
+    const n = [this.KEY_KELAS, this.KEY_ABSEN, this.KEY_SET]
       .reduce((t, k) => t + (localStorage.getItem(k) || '').length, 0);
     return n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`;
   },
 };
+
+/** Jumlah siswa hadir pada sebuah catatan. */
+const hadirDari = a => Math.max(0, num(a.total) - num(a.sakit) - num(a.izin) - num(a.alpa));
 
 /* ===== 4. UI =============================================== */
 
@@ -259,7 +263,7 @@ const UI = {
     requestAnimationFrame(langkah);
   },
 
-  /* --- Muncul bertahap saat digulir --- */
+  /* --- Kartu muncul bertahap saat digulir --- */
   pasangReveal() {
     if (!('IntersectionObserver' in window)) return;
     this.observer = new IntersectionObserver(entries => {
@@ -284,7 +288,7 @@ const UI = {
     });
   },
 
-  /** Beri jeda animasi bertahap pada baris tabel yang baru digambar. */
+  /** Animasi bertahap pada baris yang baru digambar. */
   bertahap(root, selector = 'tr') {
     $$(selector, root).forEach((el, i) => {
       el.classList.add('anim-row');
@@ -300,7 +304,7 @@ const UI = {
     setInterval(tik, 1000);
   },
 
-  /** Isi <select> dengan daftar {value,label} sambil menjaga pilihan lama. */
+  /** Isi <select> dengan {value,label} sambil menjaga pilihan lama. */
   isiSelect(sel, items, placeholder) {
     const lama = sel.value;
     sel.innerHTML = (placeholder ? `<option value="">${esc(placeholder)}</option>` : '') +
@@ -312,15 +316,27 @@ const UI = {
     return `<tr><td colspan="${kolom}"><div class="empty">
       <i class="fa-solid ${ikon}"></i><strong>${esc(judul)}</strong>${esc(pesan)}</div></td></tr>`;
   },
+
+  /** Badge persentase berwarna sesuai ambang kehadiran. */
+  badgePersen(p) {
+    const kelas = p >= 95 ? 'b-hadir' : p >= 85 ? 'b-terlambat' : 'b-alpa';
+    return `<span class="badge ${kelas}">${p}%</span>`;
+  },
 };
 
 /* ===== 5. ROUTER =========================================== */
 
-const Router = {
-  halaman: 'dashboard',
+const HALAMAN = {
+  dashboard: () => Beranda,
+  absensi:   () => Input,
+  riwayat:   () => Riwayat,
+  kelas:     () => Kelas,
+  rekap:     () => Rekap,
+  pengaturan:() => Pengaturan,
+};
 
+const Router = {
   init() {
-    // Menu utama
     $$('.nav-link').forEach(a => {
       a.addEventListener('click', e => {
         e.preventDefault();
@@ -337,10 +353,8 @@ const Router = {
       this.buka(t.dataset.goto);
     });
 
-    // Tombol menu pada layar kecil
     $('#navToggle').addEventListener('click', () => $('#navMenu').classList.toggle('open'));
 
-    // Dukungan tombol kembali peramban
     window.addEventListener('hashchange', () => this.dariHash());
     this.dariHash(false);
   },
@@ -354,7 +368,6 @@ const Router = {
   buka(nama, gulir = true) {
     const target = $(`#page-${nama}`);
     if (!target) return;
-    this.halaman = nama;
 
     $$('.page').forEach(p => p.classList.remove('active'));
     target.classList.add('active');
@@ -363,375 +376,400 @@ const Router = {
     if (location.hash !== `#${nama}`) history.replaceState(null, '', `#${nama}`);
     if (gulir) window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // Segarkan isi halaman yang dibuka
-    ({ dashboard: Dashboard, absensi: Absensi, guru: Guru, rekap: Rekap, pengaturan: Pengaturan }[nama])?.render();
+    HALAMAN[nama]?.().render();
     UI.amatiReveal();
   },
 };
 
-/* ===== 6. HALAMAN DASHBOARD ================================ */
+/* ===== 6. HALAMAN BERANDA ================================== */
 
-const Dashboard = {
+const Beranda = {
   render() {
     const hariIni = isoDate();
-    const bulanIni = isoMonth();
-
-    // Tanggal besar pada hero
     const now = new Date();
+
     $('#heroDay').textContent   = HARI[now.getDay()];
     $('#heroDate').textContent  = now.getDate();
     $('#heroMonth').textContent = `${BULAN[now.getMonth()]} ${now.getFullYear()}`;
     $('#todayLabel').textContent = `— ${tanggalPanjang(hariIni)}`;
-    $('#dashMonthLabel').textContent = bulanPanjang(bulanIni);
+    $('#dashMonthLabel').textContent = bulanPanjang(isoMonth());
 
-    // Kartu statistik hari ini
-    const hari = Store.absen.filter(a => a.tanggal === hariIni);
-    const n = k => hari.filter(a => a.status === k).length;
-    const belum = Math.max(0, Store.guru.length - new Set(hari.map(a => a.guruId)).size);
+    // Statistik hari ini
+    const data = Store.absenTanggal(hariIni);
+    const jml = k => data.reduce((t, a) => t + num(a[k]), 0);
+    const hadir = data.reduce((t, a) => t + hadirDari(a), 0);
+    const sudah = new Set(data.map(a => a.kelasId));
 
-    UI.hitungAngka($('#stTotalGuru'), Store.guru.length);
-    UI.hitungAngka($('#stHadir'), n('Hadir'));
-    UI.hitungAngka($('#stTelat'), n('Terlambat'));
-    UI.hitungAngka($('#stIzin'), n('Izin') + n('Sakit'));
-    UI.hitungAngka($('#stDinas'), n('Dinas Luar'));
-    UI.hitungAngka($('#stAlpa'), belum);
+    UI.hitungAngka($('#stTotal'), Store.totalSiswa());
+    UI.hitungAngka($('#stHadir'), hadir);
+    UI.hitungAngka($('#stSakit'), jml('sakit'));
+    UI.hitungAngka($('#stIzin'), jml('izin'));
+    UI.hitungAngka($('#stAlpa'), jml('alpa'));
+    UI.hitungAngka($('#stBelum'), Store.kelas.filter(k => !sudah.has(k.id)).length);
 
-    this.renderCincin(bulanIni);
-    this.renderTerakhir();
+    this.renderCincin(isoMonth());
+    this.renderHariIni(hariIni);
   },
 
-  /** Cincin persentase kehadiran bulan berjalan + rincian per status. */
+  /** Cincin persentase kehadiran bulan berjalan + rincian kategori. */
   renderCincin(bulan) {
     const data = Store.absen.filter(a => a.tanggal.startsWith(bulan));
-    const total = data.length;
-    const hadir = data.filter(a => STATUS_HADIR.includes(a.status)).length;
-    const pct = total ? Math.round((hadir / total) * 100) : 0;
+    const total = data.reduce((t, a) => t + num(a.total), 0);
+    const hadir = data.reduce((t, a) => t + hadirDari(a), 0);
+    const pct = persen(hadir, total);
 
-    // requestAnimationFrame agar transisi --pct tetap terlihat
     requestAnimationFrame(() => { $('#attRing').style.setProperty('--pct', pct); });
     UI.hitungAngka($('#attPct'), pct, { suffix: '%' });
 
+    const baris = [{ label: 'Hadir', color: WARNA_HADIR, nilai: hadir }]
+      .concat(KATEGORI.map(k => ({
+        label: k.label, color: k.color,
+        nilai: data.reduce((t, a) => t + num(a[k.key]), 0),
+      })));
+
     $('#monthLegend').innerHTML = total
-      ? STATUS.map(s => {
-          const c = data.filter(a => a.status === s.key).length;
-          return `<li><span class="dot" style="background:${s.color}"></span>
-            <span class="lg-name">${s.key}</span>
-            <span class="lg-val">${c}</span></li>`;
-        }).join('')
+      ? baris.map(b => `<li><span class="dot" style="background:${b.color}"></span>
+          <span class="lg-name">${b.label}</span>
+          <span class="lg-val">${b.nilai}</span></li>`).join('')
       : `<li><span class="lg-name">Belum ada catatan pada ${esc(bulanPanjang(bulan))}.</span></li>`;
   },
 
-  renderTerakhir() {
-    const body = $('#recentBody');
-    const data = Store.absenTerurut().slice(0, 8);
+  /** Daftar kelas beserta status pengisian hari ini. */
+  renderHariIni(tanggal) {
+    const body = $('#todayBody');
+    const daftar = Store.kelasTerurut();
 
-    body.innerHTML = data.length
-      ? data.map(a => {
-          const m = statusMeta(a.status);
-          return `<tr>
-            <td>${tanggalPendek(a.tanggal)}</td>
-            <td class="nm">${esc(Store.namaGuru(a.guruId))}</td>
-            <td><span class="badge ${m.badge}">${esc(a.status)}</span></td>
-            <td>${esc(a.masuk || '—')}</td>
-          </tr>`;
-        }).join('')
-      : UI.kosong(4, 'Belum ada absensi', 'Mulai dari menu Absensi Harian.', 'fa-clipboard');
+    if (!daftar.length) {
+      body.innerHTML = UI.kosong(6, 'Belum ada kelas',
+        'Tambahkan kelas terlebih dahulu pada menu Data Kelas.', 'fa-chalkboard');
+      return;
+    }
+
+    body.innerHTML = daftar.map(k => {
+      const a = Store.absenPada(k.id, tanggal);
+      if (!a) {
+        return `<tr><td class="nm">${esc(k.nama)}</td>
+          <td colspan="5"><span class="badge b-cuti">Belum diisi</span></td></tr>`;
+      }
+      const h = hadirDari(a);
+      return `<tr>
+        <td class="nm">${esc(k.nama)}</td>
+        <td><strong>${h}</strong> / ${num(a.total)}</td>
+        <td>${num(a.sakit)}</td><td>${num(a.izin)}</td><td>${num(a.alpa)}</td>
+        <td>${UI.badgePersen(persen(h, num(a.total)))}</td>
+      </tr>`;
+    }).join('');
 
     UI.bertahap(body);
   },
 };
 
-/* ===== 7. HALAMAN ABSENSI ================================== */
+/* ===== 7. HALAMAN INPUT ABSENSI ============================ */
 
-const Absensi = {
+const Input = {
   init() {
-    // Isi pilihan status pada filter
-    UI.isiSelect($('#fltStatus'), STATUS.map(s => ({ value: s.key, label: s.key })), 'Semua status');
+    $('#inputTanggal').value = isoDate();
+    $('#inputTanggal').addEventListener('change', () => this.render());
+    $('#btnHariIni').addEventListener('click', () => {
+      $('#inputTanggal').value = isoDate();
+      this.render();
+    });
+    $('#btnNolkan').addEventListener('click', () => this.nolkan());
+    $('#btnMuatUlang').addEventListener('click', () => {
+      this.render();
+      UI.toast('Isian dimuat ulang dari data tersimpan.', 'info');
+    });
+    $('#btnSimpanSemua').addEventListener('click', () => this.simpan());
 
-    $('#absTanggal').value = isoDate();
-
-    // Deteksi keterlambatan otomatis saat jam masuk diisi
-    $('#absMasuk').addEventListener('change', () => this.deteksiTerlambat());
-    $('#absTanggal').addEventListener('change', () => this.renderCepat());
-
-    $('#formAbsensi').addEventListener('submit', e => { e.preventDefault(); this.simpan(); });
-    $('#absReset').addEventListener('click', () => this.resetForm());
-    $('#absNow').addEventListener('click', () => {
-      $('#absMasuk').value = jamSekarang();
-      this.deteksiTerlambat();
-      UI.toast(`Jam masuk diisi ${jamSekarang()}.`, 'info');
+    // Hitung ulang kolom Hadir setiap kali angka berubah
+    $('#inputBody').addEventListener('input', e => {
+      if (e.target.classList.contains('num')) this.hitungBaris(e.target.closest('tr'));
+      if (e.target.classList.contains('num') || e.target.classList.contains('ket-input')) this.hitungTotal();
     });
 
-    // Filter riwayat
-    ['#fltCari', '#fltDari', '#fltSampai', '#fltStatus'].forEach(s =>
-      $(s).addEventListener('input', () => this.renderRiwayat()));
+    // Enter berpindah ke kolom isian berikutnya
+    $('#inputBody').addEventListener('keydown', e => {
+      if (e.key !== 'Enter' || !e.target.classList.contains('num')) return;
+      e.preventDefault();
+      const semua = $$('#inputBody .num');
+      const i = semua.indexOf(e.target);
+      semua[Math.min(i + 1, semua.length - 1)]?.focus();
+    });
+  },
+
+  get tanggal() { return $('#inputTanggal').value || isoDate(); },
+
+  render() {
+    const tanggal = this.tanggal;
+    $('#inputDateLabel').textContent = tanggalPanjang(tanggal);
+
+    const daftar = Store.kelasTerurut();
+    const body = $('#inputBody');
+
+    if (!daftar.length) {
+      body.innerHTML = UI.kosong(7, 'Belum ada kelas',
+        'Tambahkan kelas terlebih dahulu pada menu Data Kelas.', 'fa-chalkboard');
+      $('#inputFoot').innerHTML = '';
+      $('#inputStatusPill').textContent = '0 kelas';
+      return;
+    }
+
+    body.innerHTML = daftar.map(k => {
+      const a = Store.absenPada(k.id, tanggal);
+      const total = num(k.jumlah);
+      const v = f => a ? num(a[f]) : 0;
+      const kolom = f => `<td><input type="number" class="num${a && v(f) ? ' isi' : ''}"
+        data-f="${f}" min="0" max="${total}" value="${v(f)}" aria-label="${f} ${esc(k.nama)}"></td>`;
+
+      return `<tr data-kelas="${k.id}" data-total="${total}"${a ? ' class="tersimpan"' : ''}>
+        <td><span class="nm">${esc(k.nama)}</span>
+            ${k.wali ? `<span class="sub">${esc(k.wali)}</span>` : ''}</td>
+        <td>${total}</td>
+        ${KATEGORI.map(c => kolom(c.key)).join('')}
+        <td class="hadir-cell">${a ? hadirDari(a) : total}</td>
+        <td><input type="text" class="ket-input" value="${esc(a?.keterangan || '')}" placeholder="—"></td>
+      </tr>`;
+    }).join('');
+
+    // Nama guru piket terakhir untuk tanggal ini
+    const contoh = Store.absenTanggal(tanggal).find(a => a.guru);
+    $('#inputGuru').value = contoh?.guru || '';
+
+    const terisi = new Set(Store.absenTanggal(tanggal).map(a => a.kelasId)).size;
+    $('#inputStatusPill').textContent = terisi
+      ? `${terisi} dari ${daftar.length} kelas tersimpan`
+      : `${daftar.length} kelas belum diisi`;
+
+    UI.bertahap(body);
+    this.hitungTotal();
+  },
+
+  /** Perbarui kolom Hadir satu baris + validasi agar tidak melebihi jumlah siswa. */
+  hitungBaris(tr) {
+    if (!tr) return;
+    const total = num(tr.dataset.total);
+    const input = f => $(`.num[data-f="${f}"]`, tr);
+    let jumlahAbsen = KATEGORI.reduce((t, c) => t + num(input(c.key).value), 0);
+
+    KATEGORI.forEach(c => {
+      const el = input(c.key);
+      el.classList.toggle('isi', num(el.value) > 0);
+      el.classList.remove('lebih');
+    });
+
+    if (jumlahAbsen > total) {
+      KATEGORI.forEach(c => input(c.key).classList.add('lebih'));
+      $('.hadir-cell', tr).textContent = 0;
+      return;
+    }
+    $('.hadir-cell', tr).textContent = total - jumlahAbsen;
+  },
+
+  /** Baris jumlah di kaki tabel. */
+  hitungTotal() {
+    const baris = $$('#inputBody tr[data-kelas]');
+    if (!baris.length) { $('#inputFoot').innerHTML = ''; return; }
+
+    let total = 0, sakit = 0, izin = 0, alpa = 0;
+    baris.forEach(tr => {
+      total += num(tr.dataset.total);
+      sakit += num($('.num[data-f="sakit"]', tr).value);
+      izin  += num($('.num[data-f="izin"]', tr).value);
+      alpa  += num($('.num[data-f="alpa"]', tr).value);
+    });
+    const hadir = Math.max(0, total - sakit - izin - alpa);
+
+    $('#inputFoot').innerHTML = `<tr>
+      <td>JUMLAH</td><td>${total}</td>
+      <td>${sakit}</td><td>${izin}</td><td>${alpa}</td>
+      <td>${hadir} <span class="sub">${persen(hadir, total)}%</span></td><td></td>
+    </tr>`;
+  },
+
+  nolkan() {
+    $$('#inputBody .num').forEach(el => { el.value = 0; el.classList.remove('isi', 'lebih'); });
+    $$('#inputBody tr[data-kelas]').forEach(tr => this.hitungBaris(tr));
+    this.hitungTotal();
+    UI.toast('Seluruh isian dinolkan. Tekan Simpan Absensi untuk menyimpan.', 'info');
+  },
+
+  simpan() {
+    const tanggal = this.tanggal;
+    const baris = $$('#inputBody tr[data-kelas]');
+    if (!baris.length) { UI.toast('Belum ada kelas untuk diisi.', 'warn'); return; }
+
+    // Validasi terlebih dahulu — jangan simpan sebagian
+    const salah = baris.find(tr => {
+      const total = num(tr.dataset.total);
+      const isi = KATEGORI.reduce((t, c) => t + num($(`.num[data-f="${c.key}"]`, tr).value), 0);
+      return isi > total;
+    });
+    if (salah) {
+      const nama = $('.nm', salah).textContent;
+      UI.toast(`Jumlah absen kelas ${nama} melebihi jumlah siswa.`, 'err', 4200);
+      $('.num', salah).focus();
+      return;
+    }
+
+    const guru = $('#inputGuru').value.trim();
+    let baru = 0, diperbarui = 0;
+
+    baris.forEach(tr => {
+      const kelasId = tr.dataset.kelas;
+      const rec = {
+        tanggal, kelasId,
+        total: num(tr.dataset.total),
+        keterangan: $('.ket-input', tr).value.trim(),
+        guru,
+        ts: Date.now(),
+      };
+      KATEGORI.forEach(c => { rec[c.key] = num($(`.num[data-f="${c.key}"]`, tr).value); });
+
+      const lama = Store.absenPada(kelasId, tanggal);
+      if (lama) { Object.assign(lama, rec); diperbarui++; }
+      else { Store.absen.push({ id: uid(), ...rec }); baru++; }
+    });
+
+    Store.simpanAbsen();
+    UI.toast(`Absensi ${tanggalPanjang(tanggal)} tersimpan — ${baru} baru, ${diperbarui} diperbarui.`, 'ok', 4000);
+    this.render();
+    Pengaturan.renderStat();
+  },
+};
+
+/* ===== 8. HALAMAN RIWAYAT ================================== */
+
+const Riwayat = {
+  init() {
+    ['#fltDari', '#fltSampai', '#fltKelas', '#fltCari'].forEach(s =>
+      $(s).addEventListener('input', () => this.renderTabel()));
     $('#fltReset').addEventListener('click', () => {
-      ['#fltCari', '#fltDari', '#fltSampai', '#fltStatus'].forEach(s => { $(s).value = ''; });
-      this.renderRiwayat();
+      ['#fltDari', '#fltSampai', '#fltKelas', '#fltCari'].forEach(s => { $(s).value = ''; });
+      this.renderTabel();
       UI.toast('Filter dibersihkan.', 'info');
     });
+    $('#riwayatExport').addEventListener('click', () => this.ekspor());
+    $('#riwayatHapus').addEventListener('click', () => this.hapusTerfilter());
 
-    $('#absExport').addEventListener('click', () => this.ekspor());
-    $('#absClearFiltered').addEventListener('click', () => this.hapusTerfilter());
-
-    // Aksi pada tabel riwayat (delegasi peristiwa)
-    $('#absBody').addEventListener('click', e => {
+    $('#riwayatBody').addEventListener('click', e => {
       const btn = e.target.closest('[data-act]');
       if (!btn) return;
-      if (btn.dataset.act === 'edit') this.muatKeForm(btn.dataset.id);
+      if (btn.dataset.act === 'edit') this.bukaDiInput(btn.dataset.id);
       if (btn.dataset.act === 'del') this.hapus(btn.dataset.id);
-    });
-
-    // Aksi pada panel absen cepat
-    $('#quickList').addEventListener('click', e => {
-      const btn = e.target.closest('.qbtn');
-      if (btn) this.absenCepat(btn.dataset.guru, btn.dataset.status);
     });
   },
 
   render() {
-    UI.isiSelect($('#absGuru'),
-      Store.guru.map(g => ({ value: g.id, label: `${g.nama}${g.jabatan ? ' — ' + g.jabatan : ''}` })),
-      '— Pilih Guru —');
-    $('#hintJam').textContent = Store.setting.jamMasuk;
-    if (!$('#absTanggal').value) $('#absTanggal').value = isoDate();
-    this.renderCepat();
-    this.renderRiwayat();
+    UI.isiSelect($('#fltKelas'),
+      Store.kelasTerurut().map(k => ({ value: k.id, label: k.nama })), 'Semua kelas');
+    this.renderTabel();
   },
 
-  deteksiTerlambat() {
-    const masuk = $('#absMasuk').value;
-    const sel = $('#absStatus');
-    if (!masuk) return;
-    if (jamLebih(masuk, Store.setting.jamMasuk)) {
-      if (sel.value === 'Hadir') sel.value = 'Terlambat';
-    } else if (sel.value === 'Terlambat') {
-      sel.value = 'Hadir';
-    }
-  },
+  terfilter() {
+    const dari = $('#fltDari').value;
+    const sampai = $('#fltSampai').value;
+    const kelasId = $('#fltKelas').value;
+    const q = $('#fltCari').value.trim().toLowerCase();
 
-  /* --- Simpan / ubah --- */
-  simpan() {
-    const id = $('#absId').value;
-    const rec = {
-      tanggal: $('#absTanggal').value,
-      guruId: $('#absGuru').value,
-      status: $('#absStatus').value,
-      masuk: $('#absMasuk').value,
-      keluar: $('#absKeluar').value,
-      keterangan: $('#absKeterangan').value.trim(),
-    };
-
-    if (!rec.tanggal || !rec.guruId) {
-      UI.toast('Tanggal dan nama guru wajib diisi.', 'err');
-      return;
-    }
-    if (rec.keluar && rec.masuk && rec.keluar < rec.masuk) {
-      UI.toast('Jam keluar tidak boleh lebih awal dari jam masuk.', 'err');
-      return;
-    }
-
-    const ganda = Store.absenPada(rec.guruId, rec.tanggal);
-    if (ganda && ganda.id !== id) {
-      // Satu guru satu catatan per tanggal → perbarui catatan yang ada
-      Object.assign(ganda, rec, { ts: Date.now() });
-      Store.simpanAbsen();
-      UI.toast(`Absensi ${Store.namaGuru(rec.guruId)} pada ${tanggalPendek(rec.tanggal)} diperbarui.`, 'warn');
-    } else if (id) {
-      const lama = Store.absen.find(a => a.id === id);
-      Object.assign(lama, rec, { ts: Date.now() });
-      Store.simpanAbsen();
-      UI.toast('Perubahan absensi tersimpan.', 'ok');
-    } else {
-      Store.absen.push({ id: uid(), ...rec, ts: Date.now() });
-      Store.simpanAbsen();
-      UI.toast(`Absensi ${Store.namaGuru(rec.guruId)} tersimpan.`, 'ok');
-    }
-
-    this.resetForm();
-    this.render();
-    Dashboard.render();
-    Pengaturan.renderStat();
-  },
-
-  absenCepat(guruId, status) {
-    const tanggal = $('#absTanggal').value || isoDate();
-    const masuk = STATUS_HADIR.includes(status) && status !== 'Dinas Luar' ? jamSekarang() : '';
-    Store.absen.push({
-      id: uid(), tanggal, guruId, status, masuk, keluar: '', keterangan: '', ts: Date.now(),
+    return Store.absenTerurut().filter(a => {
+      if (dari && a.tanggal < dari) return false;
+      if (sampai && a.tanggal > sampai) return false;
+      if (kelasId && a.kelasId !== kelasId) return false;
+      if (q && !`${a.keterangan || ''} ${a.guru || ''} ${Store.namaKelas(a.kelasId)}`
+        .toLowerCase().includes(q)) return false;
+      return true;
     });
-    Store.simpanAbsen();
-    UI.toast(`${Store.namaGuru(guruId)} → ${status}`, 'ok', 2200);
-    this.renderCepat();
-    this.renderRiwayat();
-    Dashboard.render();
-    Pengaturan.renderStat();
   },
 
-  muatKeForm(id) {
+  renderTabel() {
+    const data = this.terfilter();
+    const body = $('#riwayatBody');
+    $('#riwayatCount').textContent = `${data.length} dari ${Store.absen.length} catatan`;
+
+    body.innerHTML = data.length
+      ? data.map(a => {
+          const h = hadirDari(a);
+          return `<tr>
+            <td><span class="nm">${tanggalPendek(a.tanggal)}</span>
+                <span class="sub">${HARI[hariDari(a.tanggal)]}</span></td>
+            <td class="nm">${esc(Store.namaKelas(a.kelasId))}</td>
+            <td>${num(a.total)}</td>
+            <td><strong>${h}</strong></td>
+            <td>${num(a.sakit)}</td><td>${num(a.izin)}</td><td>${num(a.alpa)}</td>
+            <td>${UI.badgePersen(persen(h, num(a.total)))}</td>
+            <td>${esc(a.keterangan || '—')}</td>
+            <td><div class="act-row">
+              <button class="icon-btn ib-edit" data-act="edit" data-id="${a.id}" title="Ubah di halaman input"><i class="fa-solid fa-pen"></i></button>
+              <button class="icon-btn ib-del" data-act="del" data-id="${a.id}" title="Hapus"><i class="fa-solid fa-trash"></i></button>
+            </div></td>
+          </tr>`;
+        }).join('')
+      : UI.kosong(10, 'Tidak ada catatan', 'Sesuaikan filter atau isi absensi terlebih dahulu.', 'fa-clipboard-list');
+
+    UI.bertahap(body);
+  },
+
+  /** Ubah = buka tanggal terkait di halaman Input Absensi. */
+  bukaDiInput(id) {
     const a = Store.absen.find(x => x.id === id);
     if (!a) return;
-    $('#absId').value = a.id;
-    $('#absTanggal').value = a.tanggal;
-    $('#absGuru').value = a.guruId;
-    $('#absStatus').value = a.status;
-    $('#absMasuk').value = a.masuk || '';
-    $('#absKeluar').value = a.keluar || '';
-    $('#absKeterangan').value = a.keterangan || '';
-    $('#absSubmitLabel').textContent = 'Perbarui Absensi';
-    $('#formAbsensi').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    $('#formAbsensi').closest('.card').classList.add('flash');
-    setTimeout(() => $('#formAbsensi').closest('.card').classList.remove('flash'), 1300);
-  },
-
-  resetForm() {
-    $('#formAbsensi').reset();
-    $('#absId').value = '';
-    $('#absTanggal').value = isoDate();
-    $('#absSubmitLabel').textContent = 'Simpan Absensi';
+    $('#inputTanggal').value = a.tanggal;
+    Router.buka('absensi');
+    UI.toast(`Membuka absensi ${tanggalPanjang(a.tanggal)} untuk diubah.`, 'info');
   },
 
   async hapus(id) {
     const a = Store.absen.find(x => x.id === id);
     if (!a) return;
-    const ok = await UI.konfirmasi('Hapus Absensi',
-      `Hapus catatan ${Store.namaGuru(a.guruId)} tanggal ${tanggalPendek(a.tanggal)}?`, 'Ya, Hapus');
+    const ok = await UI.konfirmasi('Hapus Catatan',
+      `Hapus absensi kelas ${Store.namaKelas(a.kelasId)} tanggal ${tanggalPendek(a.tanggal)}?`, 'Ya, Hapus');
     if (!ok) return;
     Store.absen = Store.absen.filter(x => x.id !== id);
     Store.simpanAbsen();
-    UI.toast('Catatan absensi dihapus.', 'ok');
-    this.render();
-    Dashboard.render();
+    UI.toast('Catatan dihapus.', 'ok');
+    this.renderTabel();
     Pengaturan.renderStat();
-  },
-
-  /* --- Absen cepat: guru yang belum tercatat --- */
-  renderCepat() {
-    const tanggal = $('#absTanggal').value || isoDate();
-    $('#quickDateLabel').textContent = tanggalPanjang(tanggal);
-    $('#quickDate2').textContent = tanggalPanjang(tanggal);
-
-    const belum = Store.guru.filter(g => !Store.absenPada(g.id, tanggal));
-    $('#quickCount').textContent = `${belum.length} belum absen`;
-
-    const host = $('#quickList');
-    if (!Store.guru.length) {
-      host.innerHTML = `<div class="empty"><i class="fa-solid fa-user-plus"></i>
-        <strong>Data guru masih kosong</strong>Tambahkan guru terlebih dahulu pada menu Data Guru.</div>`;
-      return;
-    }
-    if (!belum.length) {
-      host.innerHTML = `<div class="empty"><i class="fa-solid fa-circle-check" style="color:#10b981"></i>
-        <strong>Absensi lengkap</strong>Seluruh guru sudah tercatat pada tanggal ini.</div>`;
-      return;
-    }
-
-    host.innerHTML = belum.map((g, i) => `
-      <div class="quick-item anim-row" style="animation-delay:${Math.min(i * 30, 400)}ms">
-        <div class="qi-avatar">${esc(inisial(g.nama))}</div>
-        <div class="qi-info">
-          <div class="qi-name">${esc(g.nama)}</div>
-          <div class="qi-role">${esc(g.jabatan || '—')}${g.mapel ? ' • ' + esc(g.mapel) : ''}</div>
-        </div>
-        <div class="qi-btns">
-          ${STATUS_CEPAT.map(s =>
-            `<button class="qbtn" data-status="${esc(s)}" data-guru="${g.id}">${esc(s)}</button>`).join('')}
-        </div>
-      </div>`).join('');
-  },
-
-  /* --- Riwayat + filter --- */
-  terfilter() {
-    const q = $('#fltCari').value.trim().toLowerCase();
-    const dari = $('#fltDari').value;
-    const sampai = $('#fltSampai').value;
-    const st = $('#fltStatus').value;
-
-    return Store.absenTerurut().filter(a => {
-      if (dari && a.tanggal < dari) return false;
-      if (sampai && a.tanggal > sampai) return false;
-      if (st && a.status !== st) return false;
-      if (q) {
-        const g = Store.cariGuru(a.guruId);
-        const hay = [Store.namaGuru(a.guruId), a.keterangan, g?.jabatan, g?.mapel, g?.nip]
-          .join(' ').toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  },
-
-  renderRiwayat() {
-    const data = this.terfilter();
-    const body = $('#absBody');
-    $('#absCount').textContent = `${data.length} dari ${Store.absen.length} catatan`;
-
-    body.innerHTML = data.length
-      ? data.map(a => {
-          const g = Store.cariGuru(a.guruId);
-          const m = statusMeta(a.status);
-          return `<tr>
-            <td><span class="nm">${tanggalPendek(a.tanggal)}</span>
-                <span class="sub">${HARI[hariDari(a.tanggal)]}</span></td>
-            <td><span class="nm">${esc(Store.namaGuru(a.guruId))}</span>
-                ${g?.nip ? `<span class="sub">NIP ${esc(g.nip)}</span>` : ''}</td>
-            <td>${esc(g?.jabatan || '—')}</td>
-            <td><span class="badge ${m.badge}">${esc(a.status)}</span></td>
-            <td>${esc(a.masuk || '—')}</td>
-            <td>${esc(a.keluar || '—')}</td>
-            <td>${esc(a.keterangan || '—')}</td>
-            <td><div class="act-row">
-              <button class="icon-btn ib-edit" data-act="edit" data-id="${a.id}" title="Ubah"><i class="fa-solid fa-pen"></i></button>
-              <button class="icon-btn ib-del" data-act="del" data-id="${a.id}" title="Hapus"><i class="fa-solid fa-trash"></i></button>
-            </div></td>
-          </tr>`;
-        }).join('')
-      : UI.kosong(8, 'Tidak ada catatan', 'Sesuaikan filter atau catat absensi baru.', 'fa-clipboard-list');
-
-    UI.bertahap(body);
-  },
-
-  ekspor() {
-    const data = this.terfilter();
-    if (!data.length) { UI.toast('Tidak ada data untuk diekspor.', 'warn'); return; }
-    const baris = data.map(a => {
-      const g = Store.cariGuru(a.guruId);
-      return [a.tanggal, HARI[hariDari(a.tanggal)], Store.namaGuru(a.guruId), g?.nip || '',
-              g?.jabatan || '', g?.mapel || '', a.status, a.masuk || '', a.keluar || '', a.keterangan || ''];
-    });
-    unduh(`absensi-guru-sdi-assuryaniyah-${isoDate()}.csv`,
-      buatCSV(['Tanggal', 'Hari', 'Nama Guru', 'NIP/NIY', 'Jabatan', 'Mapel/Bidang',
-               'Status', 'Jam Masuk', 'Jam Keluar', 'Keterangan'], baris),
-      'text/csv;charset=utf-8');
-    UI.toast(`${data.length} catatan diekspor ke CSV.`, 'ok');
   },
 
   async hapusTerfilter() {
     const data = this.terfilter();
     if (!data.length) { UI.toast('Tidak ada data terfilter.', 'warn'); return; }
     const ok = await UI.konfirmasi('Hapus Data Terfilter',
-      `${data.length} catatan absensi akan dihapus permanen. Lanjutkan?`, 'Ya, Hapus Semua');
+      `${data.length} catatan akan dihapus permanen. Lanjutkan?`, 'Ya, Hapus Semua');
     if (!ok) return;
     const buang = new Set(data.map(a => a.id));
     Store.absen = Store.absen.filter(a => !buang.has(a.id));
     Store.simpanAbsen();
     UI.toast(`${buang.size} catatan dihapus.`, 'ok');
-    this.render();
-    Dashboard.render();
+    this.renderTabel();
     Pengaturan.renderStat();
+  },
+
+  ekspor() {
+    const data = this.terfilter();
+    if (!data.length) { UI.toast('Tidak ada data untuk diekspor.', 'warn'); return; }
+    const baris = data.map(a => {
+      const h = hadirDari(a);
+      return [a.tanggal, HARI[hariDari(a.tanggal)], Store.namaKelas(a.kelasId), num(a.total),
+              h, num(a.sakit), num(a.izin), num(a.alpa),
+              persen(h, num(a.total)) + '%', a.keterangan || '', a.guru || ''];
+    });
+    unduh(`absensi-siswa-${isoDate()}.csv`,
+      buatCSV(['Tanggal', 'Hari', 'Kelas', 'Jumlah Siswa', 'Hadir', 'Sakit', 'Izin', 'Alpa',
+               '% Kehadiran', 'Keterangan', 'Diisi Oleh'], baris),
+      'text/csv;charset=utf-8');
+    UI.toast(`${data.length} catatan diekspor ke CSV.`, 'ok');
   },
 };
 
-/* ===== 8. HALAMAN DATA GURU ================================ */
+/* ===== 9. HALAMAN DATA KELAS =============================== */
 
-const Guru = {
+const Kelas = {
   init() {
-    $('#formGuru').addEventListener('submit', e => { e.preventDefault(); this.simpan(); });
-    $('#guruReset').addEventListener('click', () => this.resetForm());
-    $('#guruCari').addEventListener('input', () => this.renderTabel());
-    $('#guruExport').addEventListener('click', () => this.ekspor());
+    $('#formKelas').addEventListener('submit', e => { e.preventDefault(); this.simpan(); });
+    $('#kelasReset').addEventListener('click', () => this.resetForm());
 
-    $('#guruBody').addEventListener('click', e => {
+    $('#kelasBody').addEventListener('click', e => {
       const btn = e.target.closest('[data-act]');
       if (!btn) return;
       if (btn.dataset.act === 'edit') this.muatKeForm(btn.dataset.id);
@@ -741,142 +779,100 @@ const Guru = {
 
   render() { this.renderTabel(); },
 
-  ambilForm() {
-    return {
-      nama: $('#guruNama').value.trim(),
-      nip: $('#guruNip').value.trim(),
-      nuptk: $('#guruNuptk').value.trim(),
-      jk: $('#guruJk').value,
-      jabatan: $('#guruJabatan').value,
-      mapel: $('#guruMapel').value.trim(),
-      kelas: $('#guruKelas').value,
-      statusPeg: $('#guruStatusPeg').value,
-      hp: $('#guruHp').value.trim(),
-    };
-  },
-
   simpan() {
-    const id = $('#guruId').value;
-    const rec = this.ambilForm();
-    if (!rec.nama) { UI.toast('Nama guru wajib diisi.', 'err'); return; }
+    const id = $('#kelasId').value;
+    const rec = {
+      nama: $('#kelasNama').value.trim(),
+      wali: $('#kelasWali').value.trim(),
+      jumlah: num($('#kelasJumlah').value),
+    };
+    if (!rec.nama) { UI.toast('Nama kelas wajib diisi.', 'err'); return; }
+    if (rec.jumlah < 1) { UI.toast('Jumlah siswa minimal 1.', 'err'); return; }
 
-    const kembar = Store.guru.find(g =>
-      g.id !== id && g.nama.toLowerCase() === rec.nama.toLowerCase());
-    if (kembar) { UI.toast(`Nama "${rec.nama}" sudah terdaftar.`, 'err'); return; }
+    const kembar = Store.kelas.find(k =>
+      k.id !== id && k.nama.toLowerCase() === rec.nama.toLowerCase());
+    if (kembar) { UI.toast(`Kelas "${rec.nama}" sudah terdaftar.`, 'err'); return; }
 
     if (id) {
-      Object.assign(Store.guru.find(g => g.id === id), rec);
-      UI.toast('Data guru diperbarui.', 'ok');
+      Object.assign(Store.cariKelas(id), rec);
+      UI.toast(`Kelas ${rec.nama} diperbarui.`, 'ok');
     } else {
-      Store.guru.push({ id: uid(), ...rec, ts: Date.now() });
-      UI.toast(`${rec.nama} ditambahkan.`, 'ok');
+      Store.kelas.push({ id: uid(), ...rec, ts: Date.now() });
+      UI.toast(`Kelas ${rec.nama} ditambahkan.`, 'ok');
     }
-    Store.simpanGuru();
+    Store.simpanKelas();
     this.resetForm();
     this.renderTabel();
-    Absensi.render();
-    Rekap.render();
-    Dashboard.render();
     Pengaturan.renderStat();
   },
 
   muatKeForm(id) {
-    const g = Store.cariGuru(id);
-    if (!g) return;
-    $('#guruId').value = g.id;
-    $('#guruNama').value = g.nama || '';
-    $('#guruNip').value = g.nip || '';
-    $('#guruNuptk').value = g.nuptk || '';
-    $('#guruJk').value = g.jk || 'Laki-laki';
-    $('#guruJabatan').value = g.jabatan || 'Guru Kelas';
-    $('#guruMapel').value = g.mapel || '';
-    $('#guruKelas').value = g.kelas || '';
-    $('#guruStatusPeg').value = g.statusPeg || 'GTY';
-    $('#guruHp').value = g.hp || '';
-    $('#guruSubmitLabel').textContent = 'Perbarui Guru';
-    $('#formGuru').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const k = Store.cariKelas(id);
+    if (!k) return;
+    $('#kelasId').value = k.id;
+    $('#kelasNama').value = k.nama || '';
+    $('#kelasWali').value = k.wali || '';
+    $('#kelasJumlah').value = num(k.jumlah);
+    $('#kelasSubmitLabel').textContent = 'Perbarui Kelas';
+    const card = $('#formKelas').closest('.card');
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('flash');
+    setTimeout(() => card.classList.remove('flash'), 1300);
   },
 
   resetForm() {
-    $('#formGuru').reset();
-    $('#guruId').value = '';
-    $('#guruSubmitLabel').textContent = 'Simpan Guru';
+    $('#formKelas').reset();
+    $('#kelasId').value = '';
+    $('#kelasSubmitLabel').textContent = 'Simpan Kelas';
   },
 
   async hapus(id) {
-    const g = Store.cariGuru(id);
-    if (!g) return;
-    const jml = Store.absen.filter(a => a.guruId === id).length;
-    const ok = await UI.konfirmasi('Hapus Guru',
-      `Hapus ${g.nama}?${jml ? ` ${jml} catatan absensinya juga akan dihapus.` : ''}`, 'Ya, Hapus');
+    const k = Store.cariKelas(id);
+    if (!k) return;
+    const jml = Store.absen.filter(a => a.kelasId === id).length;
+    const ok = await UI.konfirmasi('Hapus Kelas',
+      `Hapus kelas ${k.nama}?${jml ? ` ${jml} catatan absensinya juga akan dihapus.` : ''}`, 'Ya, Hapus');
     if (!ok) return;
-    Store.guru = Store.guru.filter(x => x.id !== id);
-    Store.absen = Store.absen.filter(a => a.guruId !== id);
-    Store.simpanGuru();
+    Store.kelas = Store.kelas.filter(x => x.id !== id);
+    Store.absen = Store.absen.filter(a => a.kelasId !== id);
+    Store.simpanKelas();
     Store.simpanAbsen();
-    UI.toast(`${g.nama} dihapus.`, 'ok');
+    UI.toast(`Kelas ${k.nama} dihapus.`, 'ok');
     this.renderTabel();
-    Absensi.render();
-    Rekap.render();
-    Dashboard.render();
     Pengaturan.renderStat();
   },
 
-  terfilter() {
-    const q = $('#guruCari').value.trim().toLowerCase();
-    const urut = [...Store.guru].sort((a, b) => a.nama.localeCompare(b.nama, 'id'));
-    if (!q) return urut;
-    return urut.filter(g =>
-      [g.nama, g.nip, g.nuptk, g.jabatan, g.mapel, g.kelas, g.statusPeg, g.hp]
-        .join(' ').toLowerCase().includes(q));
-  },
-
   renderTabel() {
-    const data = this.terfilter();
-    const body = $('#guruBody');
-    $('#guruCount').textContent = `${data.length} dari ${Store.guru.length} guru`;
+    const data = Store.kelasTerurut();
+    const body = $('#kelasBody');
+    $('#kelasCount').textContent = `${data.length} kelas • ${Store.totalSiswa()} siswa`;
 
     body.innerHTML = data.length
-      ? data.map((g, i) => `<tr>
+      ? data.map((k, i) => `<tr>
           <td>${i + 1}</td>
-          <td><span class="nm">${esc(g.nama)}</span>
-              <span class="sub">${esc(g.jk || '—')}${g.nuptk ? ' • NUPTK ' + esc(g.nuptk) : ''}</span></td>
-          <td>${esc(g.nip || '—')}</td>
-          <td>${esc(g.jabatan || '—')}</td>
-          <td>${esc(g.mapel || '—')}</td>
-          <td>${esc(g.kelas || '—')}</td>
-          <td><span class="pill">${esc(g.statusPeg || '—')}</span></td>
-          <td>${esc(g.hp || '—')}</td>
+          <td class="nm">${esc(k.nama)}</td>
+          <td>${esc(k.wali || '—')}</td>
+          <td>${num(k.jumlah)}</td>
           <td><div class="act-row">
-            <button class="icon-btn ib-edit" data-act="edit" data-id="${g.id}" title="Ubah"><i class="fa-solid fa-pen"></i></button>
-            <button class="icon-btn ib-del" data-act="del" data-id="${g.id}" title="Hapus"><i class="fa-solid fa-trash"></i></button>
+            <button class="icon-btn ib-edit" data-act="edit" data-id="${k.id}" title="Ubah"><i class="fa-solid fa-pen"></i></button>
+            <button class="icon-btn ib-del" data-act="del" data-id="${k.id}" title="Hapus"><i class="fa-solid fa-trash"></i></button>
           </div></td>
         </tr>`).join('')
-      : UI.kosong(9, 'Belum ada data guru', 'Isi formulir di atas untuk menambahkan.', 'fa-user-plus');
+      : UI.kosong(5, 'Belum ada kelas', 'Isi formulir di atas untuk menambahkan.', 'fa-chalkboard');
+
+    $('#kelasFoot').innerHTML = data.length
+      ? `<tr><td colspan="3">TOTAL SISWA</td><td>${Store.totalSiswa()}</td><td></td></tr>` : '';
 
     UI.bertahap(body);
   },
-
-  ekspor() {
-    const data = this.terfilter();
-    if (!data.length) { UI.toast('Tidak ada data guru untuk diekspor.', 'warn'); return; }
-    const baris = data.map((g, i) => [i + 1, g.nama, g.nip || '', g.nuptk || '', g.jk || '',
-      g.jabatan || '', g.mapel || '', g.kelas || '', g.statusPeg || '', g.hp || '']);
-    unduh(`data-guru-sdi-assuryaniyah-${isoDate()}.csv`,
-      buatCSV(['No', 'Nama', 'NIP/NIY', 'NUPTK', 'Jenis Kelamin', 'Jabatan',
-               'Mapel/Bidang', 'Kelas', 'Status Kepegawaian', 'No. HP'], baris),
-      'text/csv;charset=utf-8');
-    UI.toast(`${data.length} data guru diekspor.`, 'ok');
-  },
 };
 
-/* ===== 9. HALAMAN REKAP =================================== */
+/* ===== 10. HALAMAN REKAP ================================== */
 
 const Rekap = {
   init() {
     $('#rekapBulan').value = isoMonth();
     $('#rekapBulan').addEventListener('change', () => this.render());
-    $('#rekapGuru').addEventListener('change', () => this.render());
     $('#rekapExport').addEventListener('click', () => this.ekspor());
     $('#rekapPrint').addEventListener('click', () => {
       UI.toast('Menyiapkan dokumen cetak…', 'info', 1600);
@@ -885,94 +881,76 @@ const Rekap = {
   },
 
   render() {
-    UI.isiSelect($('#rekapGuru'),
-      [...Store.guru].sort((a, b) => a.nama.localeCompare(b.nama, 'id'))
-        .map(g => ({ value: g.id, label: g.nama })), 'Semua Guru');
-
     const bulan = $('#rekapBulan').value || isoMonth();
-    const filterGuru = $('#rekapGuru').value;
-    const { baris, hariKerja } = this.hitung(bulan, filterGuru);
+    const { baris, hari } = this.hitung(bulan);
 
-    $('#printPeriod').textContent =
-      `Periode ${bulanPanjang(bulan)} • Tahun Pelajaran ${Store.setting.tahunAjaran} • Semester ${Store.setting.semester}`;
-    $('#rekapInfo').textContent = `${baris.length} guru • ${hariKerja} hari tercatat`;
-    $('#signKepsek').textContent = Store.setting.kepsek || '…………………………';
-    $('#signOperator').textContent = Store.setting.operator || '…………………………';
-    $('#signDate').textContent = tanggalPanjang(isoDate()).split(', ')[1];
+    $('#printPeriod').textContent = bulanPanjang(bulan);
+    $('#rekapInfo').textContent = `${baris.length} kelas • ${hari} hari tercatat`;
 
     const body = $('#rekapBody');
     body.innerHTML = baris.length
       ? baris.map((r, i) => `<tr>
           <td>${i + 1}</td>
-          <td><span class="nm">${esc(r.nama)}</span></td>
-          <td>${esc(r.jabatan || '—')}</td>
-          ${STATUS.map(s => `<td>${r.count[s.key] || 0}</td>`).join('')}
+          <td class="nm">${esc(r.nama)}</td>
+          <td>${esc(r.wali || '—')}</td>
+          <td>${r.hari}</td>
           <td><strong>${r.hadir}</strong></td>
-          <td><span class="badge ${r.pct >= 90 ? 'b-hadir' : r.pct >= 75 ? 'b-terlambat' : 'b-alpa'}">${r.pct}%</span></td>
+          <td>${r.sakit}</td><td>${r.izin}</td><td>${r.alpa}</td>
+          <td>${UI.badgePersen(r.pct)}</td>
         </tr>`).join('')
-      : UI.kosong(12, 'Belum ada data pada periode ini',
-          'Pilih bulan lain atau catat absensi terlebih dahulu.', 'fa-chart-simple');
+      : UI.kosong(9, 'Belum ada data pada periode ini',
+          'Pilih bulan lain atau isi absensi terlebih dahulu.', 'fa-chart-simple');
 
-    // Baris total
     $('#rekapFoot').innerHTML = baris.length ? (() => {
-      const tot = k => baris.reduce((t, r) => t + (r.count[k] || 0), 0);
-      const totHadir = baris.reduce((t, r) => t + r.hadir, 0);
-      const totCatat = baris.reduce((t, r) => t + r.tercatat, 0);
-      const pct = totCatat ? Math.round((totHadir / totCatat) * 100) : 0;
-      return `<tr><td colspan="3">JUMLAH</td>
-        ${STATUS.map(s => `<td>${tot(s.key)}</td>`).join('')}
-        <td>${totHadir}</td><td>${pct}%</td></tr>`;
+      const t = k => baris.reduce((s, r) => s + r[k], 0);
+      return `<tr><td colspan="3">JUMLAH</td><td>${hari}</td>
+        <td>${t('hadir')}</td><td>${t('sakit')}</td><td>${t('izin')}</td><td>${t('alpa')}</td>
+        <td>${persen(t('hadir'), t('mungkin'))}%</td></tr>`;
     })() : '';
 
     UI.bertahap(body);
   },
 
-  /** Hitung rekapitulasi satu bulan. */
-  hitung(bulan, guruId) {
+  /** Rekapitulasi satu bulan per kelas. */
+  hitung(bulan) {
     const data = Store.absen.filter(a => a.tanggal.startsWith(bulan));
-    const hariKerja = new Set(data.map(a => a.tanggal)).size;
-    const daftar = guruId ? Store.guru.filter(g => g.id === guruId) : Store.guru;
+    const hari = new Set(data.map(a => a.tanggal)).size;
 
-    const baris = daftar
-      .map(g => {
-        const punya = data.filter(a => a.guruId === g.id);
-        const count = {};
-        STATUS.forEach(s => { count[s.key] = punya.filter(a => a.status === s.key).length; });
-        const hadir = STATUS_HADIR.reduce((t, k) => t + count[k], 0);
-        const tercatat = punya.length;
+    const baris = Store.kelasTerurut()
+      .map(k => {
+        const punya = data.filter(a => a.kelasId === k.id);
+        const jml = f => punya.reduce((t, a) => t + num(a[f]), 0);
+        const mungkin = punya.reduce((t, a) => t + num(a.total), 0);
+        const hadir = punya.reduce((t, a) => t + hadirDari(a), 0);
         return {
-          id: g.id, nama: g.nama, nip: g.nip || '', jabatan: g.jabatan || '',
-          count, hadir, tercatat,
-          pct: hariKerja ? Math.round((hadir / hariKerja) * 100) : 0,
+          nama: k.nama, wali: k.wali || '', hari: punya.length,
+          hadir, sakit: jml('sakit'), izin: jml('izin'), alpa: jml('alpa'),
+          mungkin, pct: persen(hadir, mungkin),
         };
       })
-      .filter(r => r.tercatat > 0 || !!guruId)
-      .sort((a, b) => a.nama.localeCompare(b.nama, 'id'));
+      .filter(r => r.hari > 0);
 
-    return { baris, hariKerja };
+    return { baris, hari };
   },
 
   ekspor() {
     const bulan = $('#rekapBulan').value || isoMonth();
-    const { baris, hariKerja } = this.hitung(bulan, $('#rekapGuru').value);
+    const { baris } = this.hitung(bulan);
     if (!baris.length) { UI.toast('Tidak ada data pada periode ini.', 'warn'); return; }
 
-    const isi = baris.map((r, i) => [i + 1, r.nama, r.nip, r.jabatan,
-      ...STATUS.map(s => r.count[s.key] || 0), r.hadir, hariKerja, r.pct + '%']);
-
-    unduh(`rekap-absensi-${bulan}-sdi-assuryaniyah.csv`,
-      buatCSV(['No', 'Nama Guru', 'NIP/NIY', 'Jabatan', ...STATUS.map(s => s.key),
-               'Total Hadir', 'Hari Tercatat', '% Kehadiran'], isi),
+    const isi = baris.map((r, i) =>
+      [i + 1, r.nama, r.wali, r.hari, r.hadir, r.sakit, r.izin, r.alpa, r.pct + '%']);
+    unduh(`rekap-absensi-siswa-${bulan}.csv`,
+      buatCSV(['No', 'Kelas', 'Wali Kelas', 'Hari Tercatat', 'Hadir', 'Sakit', 'Izin', 'Alpa', '% Kehadiran'], isi),
       'text/csv;charset=utf-8');
     UI.toast(`Rekap ${bulanPanjang(bulan)} diekspor.`, 'ok');
   },
 };
 
-/* ===== 10. HALAMAN PENGATURAN ============================= */
+/* ===== 11. HALAMAN PENGATURAN ============================= */
 
 const Pengaturan = {
   init() {
-    // Deretan pilihan hari kerja
     $('#hariKerjaRow').innerHTML = HARI.map((h, i) =>
       `<label class="chip" data-hari="${i}"><input type="checkbox" value="${i}">${h}</label>`).join('');
     $('#hariKerjaRow').addEventListener('change', e => {
@@ -987,59 +965,36 @@ const Pengaturan = {
   },
 
   render() {
-    const s = Store.setting;
-    $('#setNamaSekolah').value = s.namaSekolah;
-    $('#setNpsn').value = s.npsn;
-    $('#setTahunAjaran').value = s.tahunAjaran;
-    $('#setSemester').value = s.semester;
-    $('#setJamMasuk').value = s.jamMasuk;
-    $('#setJamKeluar').value = s.jamKeluar;
-    $('#setKepsek').value = s.kepsek;
-    $('#setOperator').value = s.operator;
-
     $$('#hariKerjaRow .chip').forEach(chip => {
-      const on = s.hariKerja.includes(Number(chip.dataset.hari));
+      const on = Store.setting.hariSekolah.includes(Number(chip.dataset.hari));
       chip.classList.toggle('on', on);
       $('input', chip).checked = on;
     });
-
     this.renderStat();
   },
 
   renderStat() {
-    UI.hitungAngka($('#dbGuru'), Store.guru.length);
+    UI.hitungAngka($('#dbKelas'), Store.kelas.length);
     UI.hitungAngka($('#dbAbsen'), Store.absen.length);
     $('#dbSize').textContent = Store.ukuran();
   },
 
   simpan() {
-    Object.assign(Store.setting, {
-      namaSekolah: $('#setNamaSekolah').value.trim() || Store.SETTING_DEFAULT.namaSekolah,
-      npsn: $('#setNpsn').value.trim(),
-      tahunAjaran: $('#setTahunAjaran').value.trim(),
-      semester: $('#setSemester').value,
-      jamMasuk: $('#setJamMasuk').value || '07:00',
-      jamKeluar: $('#setJamKeluar').value || '15:00',
-      kepsek: $('#setKepsek').value.trim(),
-      operator: $('#setOperator').value.trim(),
-      hariKerja: $$('#hariKerjaRow input:checked').map(i => Number(i.value)),
-    });
+    Store.setting.hariSekolah = $$('#hariKerjaRow input:checked').map(i => Number(i.value));
     Store.simpanSetting();
     UI.toast('Pengaturan tersimpan.', 'ok');
-    Absensi.render();
-    Rekap.render();
   },
 
   cadangkan() {
     const isi = JSON.stringify({
-      aplikasi: 'Absensi Guru SDI Assuryaniyah Bekasi',
+      aplikasi: 'Absensi Siswa SDI Assuryaniyah',
       versi: 1,
       dibuat: new Date().toISOString(),
       setting: Store.setting,
-      guru: Store.guru,
+      kelas: Store.kelas,
       absen: Store.absen,
     }, null, 2);
-    unduh(`cadangan-absensi-guru-${isoDate()}.json`, isi, 'application/json');
+    unduh(`cadangan-absensi-siswa-${isoDate()}.json`, isi, 'application/json');
     UI.toast('Cadangan berhasil diunduh.', 'ok');
   },
 
@@ -1050,15 +1005,15 @@ const Pengaturan = {
     reader.onload = async () => {
       try {
         const d = JSON.parse(reader.result);
-        if (!Array.isArray(d.guru) || !Array.isArray(d.absen)) throw new Error('format');
+        if (!Array.isArray(d.kelas) || !Array.isArray(d.absen)) throw new Error('format');
         const ok = await UI.konfirmasi('Pulihkan Cadangan',
-          `Berkas memuat ${d.guru.length} guru dan ${d.absen.length} catatan absensi. Seluruh data saat ini akan diganti.`,
+          `Berkas memuat ${d.kelas.length} kelas dan ${d.absen.length} catatan. Seluruh data saat ini akan diganti.`,
           'Ya, Pulihkan');
         if (!ok) return;
-        Store.guru = d.guru;
+        Store.kelas = d.kelas;
         Store.absen = d.absen;
         Store.setting = { ...Store.SETTING_DEFAULT, ...(d.setting || {}) };
-        Store.simpanGuru(); Store.simpanAbsen(); Store.simpanSetting();
+        Store.simpanKelas(); Store.simpanAbsen(); Store.simpanSetting();
         UI.toast('Data berhasil dipulihkan.', 'ok');
         renderSemua();
       } catch {
@@ -1071,27 +1026,27 @@ const Pengaturan = {
   },
 
   async muatContoh() {
-    if (Store.guru.length || Store.absen.length) {
+    if (Store.kelas.length || Store.absen.length) {
       const ok = await UI.konfirmasi('Muat Data Contoh',
         'Data contoh akan menimpa seluruh data yang ada. Lanjutkan?', 'Ya, Muat Contoh');
       if (!ok) return;
     }
-    const { guru, absen } = buatDataContoh();
-    Store.guru = guru;
+    const { kelas, absen } = buatDataContoh();
+    Store.kelas = kelas;
     Store.absen = absen;
-    Store.simpanGuru();
+    Store.simpanKelas();
     Store.simpanAbsen();
-    UI.toast(`Data contoh dimuat: ${guru.length} guru, ${absen.length} catatan.`, 'ok');
+    UI.toast(`Data contoh dimuat: ${kelas.length} kelas, ${absen.length} catatan.`, 'ok');
     renderSemua();
     Router.buka('dashboard');
   },
 
   async hapusSemua() {
     const ok = await UI.konfirmasi('Hapus Semua Data',
-      'Seluruh data guru, absensi, dan pengaturan akan dihapus permanen dari peramban ini. Tindakan tidak dapat dibatalkan.',
+      'Seluruh data kelas, absensi, dan pengaturan akan dihapus permanen dari browser ini. Tindakan tidak dapat dibatalkan.',
       'Ya, Hapus Semua');
     if (!ok) return;
-    [Store.KEY_GURU, Store.KEY_ABSEN, Store.KEY_SET].forEach(k => localStorage.removeItem(k));
+    [Store.KEY_KELAS, Store.KEY_ABSEN, Store.KEY_SET].forEach(k => localStorage.removeItem(k));
     Store.muat();
     UI.toast('Seluruh data telah dihapus.', 'ok');
     renderSemua();
@@ -1102,61 +1057,56 @@ const Pengaturan = {
 
 function buatDataContoh() {
   const daftar = [
-    ['Ust. Ahmad Fauzan, S.Pd.I.', 'Kepala Sekolah', 'Manajemen Sekolah', 'Semua Kelas', 'Laki-laki', 'GTY'],
-    ['Siti Maryam, S.Pd.', 'Guru Kelas', 'Guru Kelas I', 'I', 'Perempuan', 'GTY'],
-    ['Nur Hidayah, S.Pd.', 'Guru Kelas', 'Guru Kelas II', 'II', 'Perempuan', 'GTY'],
-    ['Rahmat Hidayat, S.Pd.', 'Guru Kelas', 'Guru Kelas III', 'III', 'Laki-laki', 'GTT'],
-    ['Dewi Lestari, S.Pd.', 'Guru Kelas', 'Guru Kelas IV', 'IV', 'Perempuan', 'GTY'],
-    ['Muhammad Ridwan, S.Pd.', 'Guru Kelas', 'Guru Kelas V', 'V', 'Laki-laki', 'GTY'],
-    ['Fitri Handayani, S.Pd.', 'Guru Kelas', 'Guru Kelas VI', 'VI', 'Perempuan', 'GTY'],
-    ['Ust. Abdul Karim, Al-Hafizh', 'Guru Tahfidz', 'Tahfidz Al-Qur’an', 'Semua Kelas', 'Laki-laki', 'GTY'],
-    ['Ustzh. Khadijah, Al-Hafizhah', 'Guru Tahfidz', 'Tahfidz Al-Qur’an', 'Semua Kelas', 'Perempuan', 'GTY'],
-    ['Yusuf Maulana, S.Pd.', 'Guru Mata Pelajaran', 'Pendidikan Jasmani', 'Semua Kelas', 'Laki-laki', 'GTT'],
-    ['Aisyah Rahmawati, S.Pd.', 'Guru Mata Pelajaran', 'Bahasa Inggris', 'Semua Kelas', 'Perempuan', 'GTT'],
-    ['Bagus Prakoso', 'Operator Sekolah', 'Dapodik & Administrasi', '', 'Laki-laki', 'Honorer'],
+    ['I A',  'Siti Maryam, S.Pd.',      28],
+    ['I B',  'Nur Hidayah, S.Pd.',      27],
+    ['II A', 'Dewi Lestari, S.Pd.',     30],
+    ['II B', 'Fitri Handayani, S.Pd.',  29],
+    ['III',  'Rahmat Hidayat, S.Pd.',   26],
+    ['IV',   'Muhammad Ridwan, S.Pd.',  31],
+    ['V',    'Aisyah Rahmawati, S.Pd.', 28],
+    ['VI',   'Yusuf Maulana, S.Pd.',    25],
   ];
 
-  const guru = daftar.map(([nama, jabatan, mapel, kelas, jk, statusPeg], i) => ({
-    id: `seed${i}`,
-    nama, jabatan, mapel, kelas, jk, statusPeg,
-    nip: `1985${String(i + 1).padStart(2, '0')}0720100${String(i + 1).padStart(2, '0')}`,
-    nuptk: `${3000000000000000 + i * 137}`,
-    hp: `0812${String(34567890 + i * 1111).slice(0, 8)}`,
-    ts: Date.now(),
+  const kelas = daftar.map(([nama, wali, jumlah], i) => ({
+    id: `k${i}`, nama, wali, jumlah, ts: Date.now(),
   }));
 
-  // Absensi 14 hari kerja terakhir dengan variasi status yang wajar
+  // 14 hari sekolah terakhir, pola tetap agar hasil dapat diulang
   const absen = [];
-  const kerja = Store.SETTING_DEFAULT.hariKerja;
+  const hariSekolah = Store.setting.hariSekolah?.length ? Store.setting.hariSekolah : [1, 2, 3, 4, 5, 6];
   const d = new Date();
   let terisi = 0;
 
   while (terisi < 14) {
-    if (kerja.includes(d.getDay())) {
+    if (hariSekolah.includes(d.getDay())) {
       const tanggal = isoDate(d);
-      guru.forEach((g, gi) => {
-        const acak = (terisi * 7 + gi * 13) % 20;             // pola tetap, bukan acak murni
-        let status = 'Hadir', masuk = '06:4' + ((gi % 5) + 1), keluar = '15:00', ket = '';
-        if (acak === 3)       { status = 'Terlambat'; masuk = '07:1' + (gi % 6); ket = 'Terlambat karena hujan'; }
-        else if (acak === 7)  { status = 'Izin'; masuk = ''; keluar = ''; ket = 'Keperluan keluarga'; }
-        else if (acak === 11) { status = 'Sakit'; masuk = ''; keluar = ''; ket = 'Surat keterangan dokter'; }
-        else if (acak === 15) { status = 'Dinas Luar'; masuk = '07:00'; keluar = '14:00'; ket = 'Rapat gugus di UPTD'; }
-        absen.push({ id: `sa${terisi}-${gi}`, tanggal, guruId: g.id, status, masuk, keluar, keterangan: ket, ts: Date.now() });
+      kelas.forEach((k, ki) => {
+        const p = (terisi * 5 + ki * 3) % 11;
+        const sakit = p % 4 === 0 ? (p % 3) : 0;
+        const izin  = p % 5 === 0 ? 1 : 0;
+        const alpa  = p === 7 ? 1 : 0;
+        absen.push({
+          id: `sa${terisi}-${ki}`, tanggal, kelasId: k.id, total: k.jumlah,
+          sakit, izin, alpa,
+          keterangan: alpa ? 'Tanpa keterangan' : '',
+          guru: 'Guru Piket', ts: Date.now(),
+        });
       });
       terisi++;
     }
     d.setDate(d.getDate() - 1);
   }
 
-  return { guru, absen };
+  return { kelas, absen };
 }
 
-/* ===== 11. INIT =========================================== */
+/* ===== 12. INIT =========================================== */
 
 function renderSemua() {
-  Dashboard.render();
-  Absensi.render();
-  Guru.render();
+  Beranda.render();
+  Input.render();
+  Riwayat.render();
+  Kelas.render();
   Rekap.render();
   Pengaturan.render();
   UI.amatiReveal();
@@ -1168,8 +1118,9 @@ function init() {
   UI.pasangRiak();
   UI.jalankanJam();
 
-  Absensi.init();
-  Guru.init();
+  Input.init();
+  Riwayat.init();
+  Kelas.init();
   Rekap.init();
   Pengaturan.init();
   Router.init();
@@ -1177,9 +1128,8 @@ function init() {
   renderSemua();
   UI.pasangReveal();
 
-  // Sambutan pertama kali
-  if (!Store.guru.length && !Store.absen.length) {
-    setTimeout(() => UI.toast('Selamat datang! Mulai dengan mengisi Data Guru, atau muat Data Contoh di Pengaturan.', 'info', 6000), 700);
+  if (!Store.kelas.length && !Store.absen.length) {
+    setTimeout(() => UI.toast('Selamat datang! Mulai dengan mengisi Data Kelas, atau muat Data Contoh di Pengaturan.', 'info', 6000), 700);
   }
 }
 

@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Absensi Guru — SDI Assuryaniyah</title>
-<meta name="description" content="Aplikasi absensi guru SDI Assuryaniyah. Pencatatan kehadiran harian, rekap bulanan, dan ekspor laporan. Bekerja offline di browser.">
+<title>Absensi Siswa — SDI Assuryaniyah</title>
+<meta name="description" content="Aplikasi absensi siswa SDI Assuryaniyah. Guru mengisi jumlah sakit, izin, dan alpa per kelas setiap hari.">
 <meta name="theme-color" content="#0d1b4b">
 <link rel="icon" type="image/png" href="assets/img/logo.png">
 <link rel="apple-touch-icon" href="assets/img/logo.png">
@@ -27,7 +27,7 @@
       </div>
     </div>
     <div class="header-badge">
-      <span class="badge-app"><i class="fa-solid fa-fingerprint"></i> Sistem Absensi Guru</span>
+      <span class="badge-app"><i class="fa-solid fa-clipboard-user"></i> Sistem Absensi Siswa</span>
       <span class="badge-clock" id="liveClock">--:--:--</span>
     </div>
   </div>
@@ -39,8 +39,9 @@
     <button class="nav-toggle" id="navToggle" aria-label="Buka menu"><i class="fa-solid fa-bars"></i></button>
     <ul class="nav-menu" id="navMenu">
       <li><a href="#" class="nav-link active" data-page="dashboard"><i class="fa-solid fa-gauge-high"></i> Beranda</a></li>
-      <li><a href="#" class="nav-link" data-page="absensi"><i class="fa-solid fa-clipboard-check"></i> Absensi Harian</a></li>
-      <li><a href="#" class="nav-link" data-page="guru"><i class="fa-solid fa-user-tie"></i> Data Guru</a></li>
+      <li><a href="#" class="nav-link" data-page="absensi"><i class="fa-solid fa-pen-to-square"></i> Input Absensi</a></li>
+      <li><a href="#" class="nav-link" data-page="riwayat"><i class="fa-solid fa-table-list"></i> Riwayat</a></li>
+      <li><a href="#" class="nav-link" data-page="kelas"><i class="fa-solid fa-chalkboard"></i> Data Kelas</a></li>
       <li><a href="#" class="nav-link" data-page="rekap"><i class="fa-solid fa-chart-column"></i> Rekap</a></li>
       <li><a href="#" class="nav-link" data-page="pengaturan"><i class="fa-solid fa-gear"></i> Pengaturan</a></li>
     </ul>
@@ -53,10 +54,10 @@
 <section class="page active" id="page-dashboard">
   <div class="hero-card">
     <div class="hero-text">
-      <h1>Absensi Guru</h1>
-      <p>Catat kehadiran harian, pantau keterlambatan, dan susun rekap bulanan dalam satu tempat. Data tersimpan otomatis di browser &mdash; <strong>offline</strong>, tanpa login.</p>
+      <h1>Absensi Siswa</h1>
+      <p>Guru cukup mengisi jumlah <strong>sakit, izin, dan alpa</strong> tiap kelas setiap hari &mdash; kehadiran terhitung otomatis. Data tersimpan di browser, tanpa login.</p>
       <div class="hero-actions">
-        <button class="btn btn-accent" data-goto="absensi"><i class="fa-solid fa-clipboard-check"></i> Isi Absensi Hari Ini</button>
+        <button class="btn btn-accent" data-goto="absensi"><i class="fa-solid fa-pen-to-square"></i> Isi Absensi Hari Ini</button>
         <button class="btn btn-ghost-light" data-goto="rekap"><i class="fa-solid fa-file-arrow-down"></i> Lihat Rekap</button>
       </div>
     </div>
@@ -71,27 +72,27 @@
   <div class="stat-grid">
     <div class="stat-card sc-total">
       <div class="sc-icon"><i class="fa-solid fa-users"></i></div>
-      <div class="sc-body"><div class="sc-num" id="stTotalGuru">0</div><div class="sc-label">Total Guru</div></div>
+      <div class="sc-body"><div class="sc-num" id="stTotal">0</div><div class="sc-label">Total Siswa</div></div>
     </div>
     <div class="stat-card sc-hadir">
       <div class="sc-icon"><i class="fa-solid fa-user-check"></i></div>
       <div class="sc-body"><div class="sc-num" id="stHadir">0</div><div class="sc-label">Hadir</div></div>
     </div>
-    <div class="stat-card sc-telat">
-      <div class="sc-icon"><i class="fa-solid fa-clock"></i></div>
-      <div class="sc-body"><div class="sc-num" id="stTelat">0</div><div class="sc-label">Terlambat</div></div>
+    <div class="stat-card sc-sakit">
+      <div class="sc-icon"><i class="fa-solid fa-briefcase-medical"></i></div>
+      <div class="sc-body"><div class="sc-num" id="stSakit">0</div><div class="sc-label">Sakit</div></div>
     </div>
     <div class="stat-card sc-izin">
       <div class="sc-icon"><i class="fa-solid fa-envelope-open-text"></i></div>
-      <div class="sc-body"><div class="sc-num" id="stIzin">0</div><div class="sc-label">Izin / Sakit</div></div>
-    </div>
-    <div class="stat-card sc-dinas">
-      <div class="sc-icon"><i class="fa-solid fa-briefcase"></i></div>
-      <div class="sc-body"><div class="sc-num" id="stDinas">0</div><div class="sc-label">Dinas Luar</div></div>
+      <div class="sc-body"><div class="sc-num" id="stIzin">0</div><div class="sc-label">Izin</div></div>
     </div>
     <div class="stat-card sc-alpa">
       <div class="sc-icon"><i class="fa-solid fa-user-xmark"></i></div>
-      <div class="sc-body"><div class="sc-num" id="stAlpa">0</div><div class="sc-label">Belum Absen</div></div>
+      <div class="sc-body"><div class="sc-num" id="stAlpa">0</div><div class="sc-label">Alpa</div></div>
+    </div>
+    <div class="stat-card sc-belum">
+      <div class="sc-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+      <div class="sc-body"><div class="sc-num" id="stBelum">0</div><div class="sc-label">Kelas Belum Input</div></div>
     </div>
   </div>
 
@@ -113,14 +114,14 @@
 
     <div class="card">
       <div class="card-head">
-        <h3><i class="fa-solid fa-list-check"></i> Absensi Terakhir</h3>
-        <button class="btn btn-sm btn-ghost" data-goto="absensi">Lihat semua</button>
+        <h3><i class="fa-solid fa-list-check"></i> Status Kelas Hari Ini</h3>
+        <button class="btn btn-sm btn-ghost" data-goto="absensi">Isi absensi</button>
       </div>
       <div class="card-body">
         <div class="table-scroll">
           <table class="tbl">
-            <thead><tr><th>Tanggal</th><th>Nama Guru</th><th>Status</th><th>Masuk</th></tr></thead>
-            <tbody id="recentBody"></tbody>
+            <thead><tr><th>Kelas</th><th>Hadir</th><th>S</th><th>I</th><th>A</th><th>%</th></tr></thead>
+            <tbody id="todayBody"></tbody>
           </table>
         </div>
       </div>
@@ -128,150 +129,109 @@
   </div>
 </section>
 
-<!-- ============ HALAMAN: ABSENSI ============ -->
+<!-- ============ HALAMAN: INPUT ABSENSI ============ -->
 <section class="page" id="page-absensi">
-  <h2 class="section-title"><i class="fa-solid fa-clipboard-check"></i> Absensi Harian</h2>
-
-  <div class="card">
-    <div class="card-head"><h3><i class="fa-solid fa-pen-to-square"></i> Input Kehadiran</h3></div>
-    <div class="card-body">
-      <form id="formAbsensi" autocomplete="off">
-        <input type="hidden" id="absId">
-        <div class="grid-3">
-          <div class="field">
-            <label for="absTanggal">Tanggal <span class="req">*</span></label>
-            <input type="date" id="absTanggal" required>
-          </div>
-          <div class="field">
-            <label for="absGuru">Nama Guru <span class="req">*</span></label>
-            <select id="absGuru" required><option value="">— Pilih Guru —</option></select>
-          </div>
-          <div class="field">
-            <label for="absStatus">Status <span class="req">*</span></label>
-            <select id="absStatus" required>
-              <option value="Hadir">Hadir</option>
-              <option value="Terlambat">Terlambat</option>
-              <option value="Izin">Izin</option>
-              <option value="Sakit">Sakit</option>
-              <option value="Dinas Luar">Dinas Luar</option>
-              <option value="Cuti">Cuti</option>
-              <option value="Alpa">Alpa</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="absMasuk">Jam Masuk</label>
-            <input type="time" id="absMasuk">
-          </div>
-          <div class="field">
-            <label for="absKeluar">Jam Keluar</label>
-            <input type="time" id="absKeluar">
-          </div>
-          <div class="field">
-            <label for="absKeterangan">Keterangan</label>
-            <input type="text" id="absKeterangan" placeholder="Opsional…">
-          </div>
-        </div>
-        <p class="hint"><i class="fa-solid fa-circle-info"></i> Jam masuk melewati <strong id="hintJam">07:00</strong> otomatis ditandai <em>Terlambat</em>.</p>
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> <span id="absSubmitLabel">Simpan Absensi</span></button>
-          <button type="button" class="btn btn-ghost" id="absNow"><i class="fa-solid fa-stopwatch"></i> Isi Jam Sekarang</button>
-          <button type="button" class="btn btn-ghost" id="absReset"><i class="fa-solid fa-rotate-left"></i> Reset</button>
-        </div>
-      </form>
-    </div>
-  </div>
+  <h2 class="section-title"><i class="fa-solid fa-pen-to-square"></i> Input Absensi Harian</h2>
 
   <div class="card">
     <div class="card-head">
-      <h3><i class="fa-solid fa-bolt"></i> Absen Cepat</h3>
-      <span class="pill" id="quickCount">0 belum absen</span>
-    </div>
-    <div class="card-body">
-      <p class="hint"><i class="fa-solid fa-circle-info"></i> Guru yang belum tercatat pada <strong id="quickDate">—</strong>. Klik status untuk mencatat langsung.</p>
-      <div id="quickList" class="quick-list"></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-head">
-      <h3><i class="fa-solid fa-table-list"></i> Riwayat Absensi</h3>
-      <span class="pill" id="absCount">0 catatan</span>
+      <h3><i class="fa-solid fa-calendar-day"></i> <span id="inputDateLabel">—</span></h3>
+      <span class="pill" id="inputStatusPill">&mdash;</span>
     </div>
     <div class="card-body">
       <div class="filter-bar">
-        <div class="field"><label for="fltCari">Cari</label><input type="search" id="fltCari" placeholder="Nama atau keterangan…"></div>
-        <div class="field"><label for="fltDari">Dari tanggal</label><input type="date" id="fltDari"></div>
-        <div class="field"><label for="fltSampai">Sampai tanggal</label><input type="date" id="fltSampai"></div>
-        <div class="field"><label for="fltStatus">Status</label><select id="fltStatus"><option value="">Semua status</option></select></div>
-        <div class="field field-btn"><button class="btn btn-ghost" id="fltReset"><i class="fa-solid fa-filter-circle-xmark"></i> Bersihkan</button></div>
+        <div class="field"><label for="inputTanggal">Tanggal</label><input type="date" id="inputTanggal"></div>
+        <div class="field"><label for="inputGuru">Diisi oleh (opsional)</label><input type="text" id="inputGuru" placeholder="Nama guru piket"></div>
+        <div class="field field-btn"><button class="btn btn-sm btn-ghost" id="btnHariIni"><i class="fa-solid fa-calendar-check"></i> Hari Ini</button></div>
+        <div class="field field-btn"><button class="btn btn-sm btn-ghost" id="btnNolkan"><i class="fa-solid fa-eraser"></i> Nolkan Semua</button></div>
       </div>
+
+      <p class="hint"><i class="fa-solid fa-circle-info"></i>
+        Isi jumlah <strong>Sakit</strong>, <strong>Izin</strong>, dan <strong>Alpa</strong> tiap kelas. Kolom <strong>Hadir</strong> terhitung otomatis. Kelas tanpa siswa absen cukup dibiarkan nol.</p>
+
       <div class="table-scroll">
-        <table class="tbl">
-          <thead><tr><th>Tanggal</th><th>Nama Guru</th><th>Status</th><th>Masuk</th><th>Keluar</th><th>Keterangan</th><th class="ta-r">Aksi</th></tr></thead>
-          <tbody id="absBody"></tbody>
+        <table class="tbl tbl-input">
+          <thead><tr>
+            <th>Kelas</th><th>Jumlah Siswa</th>
+            <th class="th-s">Sakit</th><th class="th-i">Izin</th><th class="th-a">Alpa</th>
+            <th>Hadir</th><th>Keterangan</th>
+          </tr></thead>
+          <tbody id="inputBody"></tbody>
+          <tfoot id="inputFoot"></tfoot>
         </table>
       </div>
-      <div class="table-actions">
-        <button class="btn btn-sm btn-accent" id="absExport"><i class="fa-solid fa-file-csv"></i> Ekspor CSV</button>
-        <button class="btn btn-sm btn-danger-ghost" id="absClearFiltered"><i class="fa-solid fa-trash"></i> Hapus data terfilter</button>
+
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btnSimpanSemua"><i class="fa-solid fa-floppy-disk"></i> Simpan Absensi</button>
+        <button class="btn btn-ghost" id="btnMuatUlang"><i class="fa-solid fa-rotate-left"></i> Muat Ulang</button>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============ HALAMAN: DATA GURU ============ -->
-<section class="page" id="page-guru">
-  <h2 class="section-title"><i class="fa-solid fa-user-tie"></i> Data Guru</h2>
+<!-- ============ HALAMAN: RIWAYAT ============ -->
+<section class="page" id="page-riwayat">
+  <h2 class="section-title"><i class="fa-solid fa-table-list"></i> Riwayat Absensi</h2>
 
   <div class="card">
-    <div class="card-head"><h3><i class="fa-solid fa-user-plus"></i> Tambah / Ubah Guru</h3></div>
+    <div class="card-head">
+      <h3><i class="fa-solid fa-clock-rotate-left"></i> Catatan Tersimpan</h3>
+      <span class="pill" id="riwayatCount">0 catatan</span>
+    </div>
     <div class="card-body">
-      <form id="formGuru" autocomplete="off">
-        <input type="hidden" id="guruId">
+      <div class="filter-bar">
+        <div class="field"><label for="fltDari">Dari tanggal</label><input type="date" id="fltDari"></div>
+        <div class="field"><label for="fltSampai">Sampai tanggal</label><input type="date" id="fltSampai"></div>
+        <div class="field"><label for="fltKelas">Kelas</label><select id="fltKelas"><option value="">Semua kelas</option></select></div>
+        <div class="field"><label for="fltCari">Cari keterangan</label><input type="search" id="fltCari" placeholder="Ketik untuk mencari…"></div>
+        <div class="field field-btn"><button class="btn btn-ghost" id="fltReset"><i class="fa-solid fa-filter-circle-xmark"></i> Bersihkan</button></div>
+      </div>
+
+      <div class="table-scroll">
+        <table class="tbl">
+          <thead><tr>
+            <th>Tanggal</th><th>Kelas</th><th>Siswa</th>
+            <th>Hadir</th><th>S</th><th>I</th><th>A</th><th>%</th>
+            <th>Keterangan</th><th class="ta-r">Aksi</th>
+          </tr></thead>
+          <tbody id="riwayatBody"></tbody>
+        </table>
+      </div>
+
+      <div class="table-actions">
+        <button class="btn btn-sm btn-accent" id="riwayatExport"><i class="fa-solid fa-file-csv"></i> Ekspor CSV</button>
+        <button class="btn btn-sm btn-danger-ghost" id="riwayatHapus"><i class="fa-solid fa-trash"></i> Hapus data terfilter</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HALAMAN: DATA KELAS ============ -->
+<section class="page" id="page-kelas">
+  <h2 class="section-title"><i class="fa-solid fa-chalkboard"></i> Data Kelas</h2>
+
+  <div class="card">
+    <div class="card-head"><h3><i class="fa-solid fa-plus"></i> Tambah / Ubah Kelas</h3></div>
+    <div class="card-body">
+      <form id="formKelas" autocomplete="off">
+        <input type="hidden" id="kelasId">
         <div class="grid-3">
           <div class="field">
-            <label for="guruNama">Nama Lengkap <span class="req">*</span></label>
-            <input type="text" id="guruNama" required placeholder="Nama beserta gelar">
+            <label for="kelasNama">Nama Kelas <span class="req">*</span></label>
+            <input type="text" id="kelasNama" required placeholder="Contoh: I A, II B, VI">
           </div>
           <div class="field">
-            <label for="guruNip">NIP / NIY</label>
-            <input type="text" id="guruNip" placeholder="Opsional">
+            <label for="kelasWali">Wali Kelas</label>
+            <input type="text" id="kelasWali" placeholder="Nama wali kelas">
           </div>
           <div class="field">
-            <label for="guruJabatan">Jabatan</label>
-            <select id="guruJabatan">
-              <option value="Guru Kelas">Guru Kelas</option>
-              <option value="Guru Mata Pelajaran">Guru Mata Pelajaran</option>
-              <option value="Guru Tahfidz">Guru Tahfidz</option>
-              <option value="Guru Pendamping">Guru Pendamping</option>
-              <option value="Kepala Sekolah">Kepala Sekolah</option>
-              <option value="Wakil Kepala Sekolah">Wakil Kepala Sekolah</option>
-              <option value="Operator Sekolah">Operator Sekolah</option>
-              <option value="Tenaga Administrasi">Tenaga Administrasi</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="guruMapel">Mata Pelajaran / Bidang</label>
-            <input type="text" id="guruMapel" placeholder="Contoh: Matematika, Tahfidz">
-          </div>
-          <div class="field">
-            <label for="guruKelas">Kelas</label>
-            <select id="guruKelas">
-              <option value="">—</option>
-              <option value="I">Kelas I</option><option value="II">Kelas II</option>
-              <option value="III">Kelas III</option><option value="IV">Kelas IV</option>
-              <option value="V">Kelas V</option><option value="VI">Kelas VI</option>
-              <option value="Semua Kelas">Semua Kelas</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="guruHp">No. HP / WhatsApp</label>
-            <input type="tel" id="guruHp" placeholder="08xxxxxxxxxx">
+            <label for="kelasJumlah">Jumlah Siswa <span class="req">*</span></label>
+            <input type="number" id="kelasJumlah" min="1" max="999" required placeholder="Contoh: 28">
           </div>
         </div>
         <div class="form-actions">
-          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> <span id="guruSubmitLabel">Simpan Guru</span></button>
-          <button type="button" class="btn btn-ghost" id="guruReset"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> <span id="kelasSubmitLabel">Simpan Kelas</span></button>
+          <button type="button" class="btn btn-ghost" id="kelasReset"><i class="fa-solid fa-rotate-left"></i> Reset</button>
         </div>
       </form>
     </div>
@@ -279,18 +239,15 @@
 
   <div class="card">
     <div class="card-head">
-      <h3><i class="fa-solid fa-address-book"></i> Daftar Guru</h3>
-      <span class="pill" id="guruCount">0 guru</span>
+      <h3><i class="fa-solid fa-list"></i> Daftar Kelas</h3>
+      <span class="pill" id="kelasCount">0 kelas</span>
     </div>
     <div class="card-body">
-      <div class="filter-bar">
-        <div class="field"><label for="guruCari">Cari guru</label><input type="search" id="guruCari" placeholder="Nama, NIP, jabatan, mapel…"></div>
-        <div class="field field-btn"><button class="btn btn-sm btn-accent" id="guruExport"><i class="fa-solid fa-file-csv"></i> Ekspor CSV</button></div>
-      </div>
       <div class="table-scroll">
         <table class="tbl">
-          <thead><tr><th>#</th><th>Nama</th><th>NIP / NIY</th><th>Jabatan</th><th>Mapel</th><th>Kelas</th><th>No. HP</th><th class="ta-r">Aksi</th></tr></thead>
-          <tbody id="guruBody"></tbody>
+          <thead><tr><th>#</th><th>Kelas</th><th>Wali Kelas</th><th>Jumlah Siswa</th><th class="ta-r">Aksi</th></tr></thead>
+          <tbody id="kelasBody"></tbody>
+          <tfoot id="kelasFoot"></tfoot>
         </table>
       </div>
     </div>
@@ -306,7 +263,6 @@
     <div class="card-body">
       <div class="filter-bar">
         <div class="field"><label for="rekapBulan">Bulan</label><input type="month" id="rekapBulan"></div>
-        <div class="field"><label for="rekapGuru">Guru</label><select id="rekapGuru"><option value="">Semua Guru</option></select></div>
         <div class="field field-btn"><button class="btn btn-sm btn-accent" id="rekapExport"><i class="fa-solid fa-file-csv"></i> Ekspor CSV</button></div>
         <div class="field field-btn"><button class="btn btn-sm btn-ghost" id="rekapPrint"><i class="fa-solid fa-print"></i> Cetak / PDF</button></div>
       </div>
@@ -318,31 +274,30 @@
       <img src="assets/img/logo.png" alt="Logo">
       <div>
         <strong>SDI ASSURYANIYAH</strong>
-        <span>Rekap Kehadiran Guru &mdash; <em id="printPeriod">—</em></span>
+        <span>Rekap Absensi Siswa &mdash; <em id="printPeriod">—</em></span>
       </div>
     </div>
 
     <div class="card">
       <div class="card-head">
-        <h3><i class="fa-solid fa-table"></i> Rekapitulasi per Guru</h3>
+        <h3><i class="fa-solid fa-table"></i> Rekapitulasi per Kelas</h3>
         <span class="pill" id="rekapInfo">&mdash;</span>
       </div>
       <div class="card-body">
         <div class="table-scroll">
           <table class="tbl tbl-rekap">
             <thead><tr>
-              <th>#</th><th>Nama Guru</th>
-              <th title="Hadir">H</th><th title="Terlambat">T</th><th title="Izin">I</th>
-              <th title="Sakit">S</th><th title="Dinas Luar">DL</th><th title="Cuti">C</th><th title="Alpa">A</th>
-              <th>Total Hadir</th><th>%</th>
+              <th>#</th><th>Kelas</th><th>Wali Kelas</th>
+              <th>Hari</th><th>Hadir</th><th>Sakit</th><th>Izin</th><th>Alpa</th>
+              <th>% Kehadiran</th>
             </tr></thead>
             <tbody id="rekapBody"></tbody>
             <tfoot id="rekapFoot"></tfoot>
           </table>
         </div>
         <p class="hint legend-note">
-          <strong>Keterangan:</strong> H = Hadir, T = Terlambat, I = Izin, S = Sakit, DL = Dinas Luar, C = Cuti, A = Alpa.
-          Total Hadir = H + T + DL, dihitung terhadap jumlah hari yang tercatat.
+          <strong>Keterangan:</strong> Angka merupakan jumlah kehadiran siswa selama sebulan
+          (jumlah siswa &times; hari tercatat). Persentase = Hadir &divide; total kemungkinan hadir.
         </p>
       </div>
     </div>
@@ -355,15 +310,12 @@
 
   <div class="dash-cols">
     <div class="card">
-      <div class="card-head"><h3><i class="fa-solid fa-clock"></i> Jam &amp; Hari Kerja</h3></div>
+      <div class="card-head"><h3><i class="fa-solid fa-calendar-week"></i> Hari Efektif</h3></div>
       <div class="card-body">
+        <p class="hint"><i class="fa-solid fa-circle-info"></i> Menentukan hari yang diingatkan untuk diisi dan dipakai saat membuat data contoh.</p>
         <form id="formSetting" autocomplete="off">
-          <div class="grid-2">
-            <div class="field"><label for="setJamMasuk">Batas Jam Masuk</label><input type="time" id="setJamMasuk"></div>
-            <div class="field"><label for="setJamKeluar">Jam Pulang</label><input type="time" id="setJamKeluar"></div>
-          </div>
           <div class="field" style="margin-top:15px">
-            <label>Hari Kerja</label>
+            <label>Hari Sekolah</label>
             <div class="chip-row" id="hariKerjaRow"></div>
           </div>
           <div class="form-actions">
@@ -378,8 +330,8 @@
       <div class="card-body">
         <p class="hint"><i class="fa-solid fa-shield-halved"></i> Data tersimpan di <code>localStorage</code> browser ini saja. Unduh cadangan secara berkala.</p>
         <div class="setting-stats">
-          <div><strong id="dbGuru">0</strong><span>Data Guru</span></div>
-          <div><strong id="dbAbsen">0</strong><span>Catatan Absensi</span></div>
+          <div><strong id="dbKelas">0</strong><span>Kelas</span></div>
+          <div><strong id="dbAbsen">0</strong><span>Catatan</span></div>
           <div><strong id="dbSize">0 KB</strong><span>Ukuran Data</span></div>
         </div>
         <div class="btn-stack">
