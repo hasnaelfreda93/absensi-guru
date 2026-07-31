@@ -6,7 +6,7 @@
    ============================================================
    Struktur berkas:
      1.  KONSTANTA        — status kehadiran, nama hari & bulan
-     2.  UTIL             — tanggal, teks, CSV, unduhan
+     2.  UTIL             — tanggal, teks, Excel, unduhan
      3.  STORE            — kelas, siswa, absensi, jurnal (localStorage)
      4.  UI               — toast, modal, riak, animasi, autocomplete
      5.  MODE & ROUTER    — pemilih menu + perpindahan halaman
@@ -14,7 +14,7 @@
      7.  HAL. INPUT       — daftar siswa satu kelas, tandai per nama
      8.  HAL. RIWAYAT     — catatan tersimpan, filter, ekspor
      9.  HAL. DATA KELAS  — CRUD kelas
-     10. HAL. DATA SISWA  — CRUD siswa, impor CSV/tempel, ekspor
+     10. HAL. DATA SISWA  — CRUD siswa, impor/ekspor Excel
      11. HAL. REKAP       — rekap per kelas & per siswa, ekspor, cetak
      11b.HAL. JURNAL      — isi jurnal harian + riwayat, ekspor
      12. HAL. PENGATURAN  — hari sekolah, cadangan data
@@ -113,17 +113,32 @@ function unduh(namaFile, isi, mime = 'text/plain;charset=utf-8') {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-/** CSV ber-BOM dengan pemisah ";" agar langsung rapi di Excel Indonesia. */
-function buatCSV(header, baris) {
-  const sel = v => {
-    const s = String(v ?? '');
-    return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  return '﻿' + [header, ...baris].map(r => r.map(sel).join(';')).join('\r\n');
-}
+/** Unduh laporan sebagai Excel (.xlsx): judul, header, data, lalu KESIMPULAN.
+    opsi = { sheet, judul, kesimpulan: [[label, nilai], …] }                    */
+function unduhExcel(namaFile, header, baris, opsi = {}) {
+  if (typeof XLSX === 'undefined') {
+    UI.toast('Pustaka Excel belum termuat. Muat ulang halaman lalu coba lagi.', 'err', 5000);
+    return;
+  }
 
-const unduhCSV = (nama, header, baris) =>
-  unduh(nama, buatCSV(header, baris), 'text/csv;charset=utf-8');
+  const aoa = [];
+  if (opsi.judul) aoa.push([opsi.judul], []);
+  aoa.push(header, ...baris);
+  if (opsi.kesimpulan?.length) {
+    aoa.push([], ['KESIMPULAN'], ...opsi.kesimpulan);
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  // Lebar kolom menyesuaikan isi (dicuplik 60 baris pertama agar cepat)
+  ws['!cols'] = header.map((h, i) => ({
+    wch: Math.min(42, Math.max(String(h).length + 2,
+      ...baris.slice(0, 60).map(r => String(r[i] ?? '').length + 2))),
+  }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, (opsi.sheet || 'Data').slice(0, 31));
+  XLSX.writeFile(wb, namaFile);
+}
 
 /* ===== 3. STORE ============================================ */
 
@@ -1144,10 +1159,25 @@ const Riwayat = {
               persen(h, num(a.total)) + '%',
               ...ABSEN.map(s => nama(s.key)), a.guru || ''];
     });
-    unduhCSV(`absensi-harian-${isoDate()}.csv`,
+
+    const totSiswa = data.reduce((t, a) => t + num(a.total), 0);
+    const totHadir = data.reduce((t, a) => t + hadirDari(a), 0);
+    const totSt = {};
+    ABSEN.forEach(s => { totSt[s.key] = data.reduce((t, a) => t + jumlahStatus(a, s.key), 0); });
+
+    unduhExcel(`absensi-harian-${isoDate()}.xlsx`,
       ['Tanggal', 'Hari', 'Kelas', 'Jumlah Siswa', 'Hadir', ...ABSEN.map(s => s.key), '% Kehadiran',
-       'Nama Sakit', 'Nama Izin', 'Nama Alpa', 'Diisi Oleh'], baris);
-    UI.toast(`${data.length} catatan diekspor.`, 'ok');
+       'Nama Sakit', 'Nama Izin', 'Nama Alpa', 'Diisi Oleh'], baris, {
+        sheet: 'Absensi Harian',
+        judul: 'RIWAYAT ABSENSI HARIAN — SDI ASSURYANIYAH',
+        kesimpulan: [
+          ['Jumlah catatan (kelas × hari)', data.length],
+          ['Rata-rata kehadiran', persen(totHadir, totSiswa) + '%'],
+          ...ABSEN.map(s => [`Total ${s.key}`,
+            `${totSt[s.key]} (${persen(totSt[s.key], totSiswa)}%)`]),
+        ],
+      });
+    UI.toast(`${data.length} catatan diekspor ke Excel.`, 'ok');
   },
 
   /** Satu baris per siswa yang tidak masuk. */
@@ -1159,9 +1189,19 @@ const Riwayat = {
               Store.namaSiswa(e.siswaId), s?.nis || '', e.status, e.ket || '', a.guru || ''];
     }));
     if (!baris.length) { UI.toast('Tidak ada siswa tidak masuk pada data terfilter.', 'warn'); return; }
-    unduhCSV(`absensi-rinci-per-siswa-${isoDate()}.csv`,
-      ['Tanggal', 'Hari', 'Kelas', 'Nama Siswa', 'NIS', 'Status', 'Keterangan', 'Diisi Oleh'], baris);
-    UI.toast(`${baris.length} baris rinci diekspor.`, 'ok');
+
+    const perStatus = st => baris.filter(b => b[5] === st).length;
+    unduhExcel(`absensi-rinci-per-siswa-${isoDate()}.xlsx`,
+      ['Tanggal', 'Hari', 'Kelas', 'Nama Siswa', 'NIS', 'Status', 'Keterangan', 'Diisi Oleh'], baris, {
+        sheet: 'Rinci per Siswa',
+        judul: 'RINCIAN SISWA TIDAK MASUK — SDI ASSURYANIYAH',
+        kesimpulan: [
+          ['Total kejadian tidak masuk', baris.length],
+          ...ABSEN.map(s => [`Total ${s.key}`, perStatus(s.key)]),
+          ['Siswa berbeda yang terlibat', new Set(baris.map(b => b[3])).size],
+        ],
+      });
+    UI.toast(`${baris.length} baris rinci diekspor ke Excel.`, 'ok');
   },
 };
 
@@ -1268,9 +1308,13 @@ const Kelas = {
   ekspor() {
     const data = Store.kelasTerurut();
     if (!data.length) { UI.toast('Belum ada kelas untuk diekspor.', 'warn'); return; }
-    unduhCSV(`data-kelas-${isoDate()}.csv`, ['No', 'Kelas', 'Wali Kelas', 'Jumlah Siswa'],
-      data.map((k, i) => [i + 1, k.nama, k.wali || '', Store.jumlahSiswa(k.id)]));
-    UI.toast(`${data.length} kelas diekspor.`, 'ok');
+    unduhExcel(`data-kelas-${isoDate()}.xlsx`, ['No', 'Kelas', 'Wali Kelas', 'Jumlah Siswa'],
+      data.map((k, i) => [i + 1, k.nama, k.wali || '', Store.jumlahSiswa(k.id)]), {
+        sheet: 'Data Kelas',
+        judul: 'DATA KELAS — SDI ASSURYANIYAH',
+        kesimpulan: [['Jumlah kelas', data.length], ['Jumlah siswa', Store.siswa.length]],
+      });
+    UI.toast(`${data.length} kelas diekspor ke Excel.`, 'ok');
   },
 };
 
@@ -1284,7 +1328,6 @@ const Siswa = {
     $('#siswaFltKelas').addEventListener('change', () => this.renderTabel());
     $('#siswaExport').addEventListener('click', () => this.ekspor());
     $('#siswaHapusKelas').addEventListener('click', () => this.hapusTerfilter());
-    $('#btnImpor').addEventListener('click', () => this.impor());
     $('#btnTemplate').addEventListener('click', () => this.template());
     $('#imporFile').addEventListener('change', e => this.bacaBerkas(e));
 
@@ -1400,7 +1443,7 @@ const Siswa = {
           </div></td>
         </tr>`).join('')
       : UI.kosong(6, 'Belum ada siswa',
-          'Tambahkan satu per satu, atau impor sekaligus dari CSV.', 'fa-user-plus');
+          'Tambahkan satu per satu, atau impor sekaligus dari Excel.', 'fa-user-plus');
 
     UI.bertahap(body);
   },
@@ -1421,75 +1464,95 @@ const Siswa = {
     Pengaturan.renderStat();
   },
 
-  /* --- Impor massal --- */
+  /* --- Impor dari berkas Excel --- */
 
   bacaBerkas(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const kelasId = $('#imporKelas').value;
+    if (!kelasId) {
+      UI.toast('Pilih kelas tujuan terlebih dahulu.', 'err');
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
-      $('#imporTeks').value = String(reader.result || '');
-      UI.toast(`Berkas "${file.name}" dimuat. Periksa lalu tekan Impor Siswa.`, 'info', 4000);
-      $('#imporTeks').scrollIntoView({ behavior: 'smooth', block: 'center' });
-      e.target.value = '';
-    };
-    reader.readAsText(file, 'utf-8');
-  },
-
-  /** Kata yang menandai baris judul, bukan nama siswa. */
-  JUDUL: /^(no|nomor|urut|nama|nama siswa|nama lengkap|nis|nisn|name|jk|l\/p|p\/l|jenis kelamin|kelas|keterangan|ket)$/i,
-
-  /** Ubah teks mentah (CSV atau tempelan) menjadi daftar {nama, nis}. */
-  uraikan(teks) {
-    // BOM dari Excel dibuang agar baris judul tetap terdeteksi
-    const baris = String(teks).replace(/^﻿/, '').split(/\r?\n/)
-      .map(b => b.trim()).filter(Boolean);
-
-    const hasil = [];
-    baris.forEach(b => {
-      let kolom = b.split(/[;,\t]/)
-        .map(k => k.trim().replace(/^"(.*)"$/, '$1').trim())
-        .filter(Boolean);
-      if (!kolom.length) return;
-
-      // Baris yang seluruh selnya berupa kata judul diabaikan ("nama", "No;Nama;NIS", …)
-      if (kolom.every(k => this.JUDUL.test(k))) return;
-
-      // Kolom nomor urut di depan dibuang: "1", "1.", "1)"
-      if (kolom.length > 1 && /^\d{1,3}[.)]?$/.test(kolom[0])) kolom = kolom.slice(1);
-      if (!kolom.length) return;
-
-      let nama = '', nis = '';
-      if (/^\d{4,}$/.test(kolom[0]) && kolom[1]) {
-        nis = kolom[0]; nama = kolom[1];              // NIS ditulis lebih dulu
-      } else {
-        nama = kolom[0];
-        nis = /^\d{3,}$/.test(kolom[1] || '') ? kolom[1] : '';
+      try {
+        const wb = XLSX.read(reader.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+        this.imporBaris(rows, kelasId);
+      } catch {
+        UI.toast(`Berkas "${file.name}" tidak terbaca. Gunakan berkas Excel (.xlsx).`, 'err', 4500);
+      } finally {
+        e.target.value = '';
       }
-      if (nama) hasil.push({ nama, nis });
-    });
-    return hasil;
+    };
+    reader.readAsArrayBuffer(file);
   },
 
-  impor() {
-    const kelasId = $('#imporKelas').value;
-    if (!kelasId) { UI.toast('Pilih kelas tujuan terlebih dahulu.', 'err'); return; }
+  /** "P"/"PR"/"Perempuan" → P, selainnya L. */
+  bacaJk: s => /^p/i.test(String(s).trim()) ? 'P' : 'L',
 
-    const daftar = this.uraikan($('#imporTeks').value);
-    if (!daftar.length) { UI.toast('Tidak ada nama yang terbaca. Periksa isi kotak impor.', 'err'); return; }
+  /** Sel berisi jenis kelamin? (L, P, LK, PR, Laki-laki, Perempuan) */
+  selJk: s => /^(l|p|lk|pr|laki(-| )?laki|perempuan)$/i.test(String(s).trim()),
+
+  /** Ubah baris-baris sel dari Excel menjadi daftar siswa lalu impor.
+      Kolom dikenali dari baris judul (Nama / NIS / L-P); tanpa judul,
+      isi tiap sel ditebak dari bentuknya.                              */
+  imporBaris(rows, kelasId) {
+    const bersih = rows
+      .map(r => r.map(c => String(c ?? '').trim()))
+      .filter(r => r.some(Boolean));
+    if (!bersih.length) { UI.toast('Berkas kosong — tidak ada baris terbaca.', 'err'); return; }
+
+    // Deteksi baris judul
+    const H = bersih[0].map(norm);
+    const kol = pola => H.findIndex(h => pola.test(h));
+    const iNama = kol(/^nama/);
+    const iNis  = kol(/^nisn?$/);
+    const iJk   = kol(/^(l\/p|p\/l|jk|jenis kelamin|kelamin)$/);
+
+    let daftar;
+    if (iNama >= 0) {
+      daftar = bersih.slice(1).map(r => ({
+        nama: r[iNama] || '',
+        nis: iNis >= 0 ? (r[iNis] || '') : '',
+        jk: iJk >= 0 && r[iJk] ? this.bacaJk(r[iJk]) : '',
+      }));
+    } else {
+      // Tanpa baris judul: tebak isi tiap sel
+      daftar = bersih.map(r => {
+        let sel = [...r].filter(Boolean);
+        if (sel.length > 1 && /^\d{1,3}[.)]?$/.test(sel[0])) sel = sel.slice(1); // nomor urut
+        let nama = '', nis = '', jk = '';
+        sel.forEach(c => {
+          if (!jk && this.selJk(c)) jk = this.bacaJk(c);
+          else if (!nis && /^\d{3,}$/.test(c)) nis = c;
+          else if (!nama) nama = c;
+        });
+        return { nama, nis, jk };
+      });
+    }
+
+    daftar = daftar.filter(d => d.nama && !/^nama/i.test(d.nama));
+    if (!daftar.length) {
+      UI.toast('Tidak ada nama siswa yang terbaca. Pastikan ada kolom "Nama".', 'err', 4500);
+      return;
+    }
 
     const adaSekarang = new Set(Store.siswaKelas(kelasId).map(s => norm(s.nama)));
     let masuk = 0, lewat = 0;
-
     daftar.forEach(d => {
       if (adaSekarang.has(norm(d.nama))) { lewat++; return; }
       adaSekarang.add(norm(d.nama));
-      Store.siswa.push({ id: uid(), kelasId, nama: d.nama, nis: d.nis || '', jk: 'L', ts: Date.now() });
+      Store.siswa.push({
+        id: uid(), kelasId, nama: d.nama, nis: d.nis || '', jk: d.jk || 'L', ts: Date.now(),
+      });
       masuk++;
     });
 
     Store.simpanSiswa();
-    $('#imporTeks').value = '';
     UI.toast(`${masuk} siswa masuk ke kelas ${Store.namaKelas(kelasId)}` +
              (lewat ? `, ${lewat} dilewati karena sudah ada.` : '.'), 'ok', 4500);
     this.renderTabel();
@@ -1498,18 +1561,30 @@ const Siswa = {
   },
 
   template() {
-    // Satu kolom "nama" saja — bentuk paling sederhana untuk diisi di Excel
-    unduhCSV('template-data-siswa.csv', ['nama'],
-      [['Intan Permata'], ['Intania Zahra'], ['Ahmad Fauzi'], ['Budi Santoso']]);
-    UI.toast('Template CSV diunduh. Isi kolom nama lalu unggah kembali.', 'ok');
+    unduhExcel('template-data-siswa.xlsx', ['Nama', 'NIS', 'L/P'],
+      [['Intan Permata', '2024001', 'P'],
+       ['Intania Zahra', '2024002', 'P'],
+       ['Ahmad Fauzi', '', 'L'],
+       ['Budi Santoso', '', 'L']],
+      { sheet: 'Data Siswa' });
+    UI.toast('Template Excel diunduh. NIS boleh dikosongkan.', 'ok', 4000);
   },
 
   ekspor() {
     const data = this.terfilter();
     if (!data.length) { UI.toast('Tidak ada siswa untuk diekspor.', 'warn'); return; }
-    unduhCSV(`data-siswa-${isoDate()}.csv`, ['No', 'Nama Siswa', 'NIS', 'L/P', 'Kelas'],
-      data.map((s, i) => [i + 1, s.nama, s.nis || '', s.jk || '', Store.namaKelas(s.kelasId)]));
-    UI.toast(`${data.length} data siswa diekspor.`, 'ok');
+    const nL = data.filter(s => s.jk !== 'P').length;
+    unduhExcel(`data-siswa-${isoDate()}.xlsx`, ['No', 'Nama Siswa', 'NIS', 'L/P', 'Kelas'],
+      data.map((s, i) => [i + 1, s.nama, s.nis || '', s.jk || '', Store.namaKelas(s.kelasId)]), {
+        sheet: 'Data Siswa',
+        judul: 'DATA SISWA — SDI ASSURYANIYAH',
+        kesimpulan: [
+          ['Jumlah siswa', data.length],
+          ['Laki-laki', nL],
+          ['Perempuan', data.length - nL],
+        ],
+      });
+    UI.toast(`${data.length} data siswa diekspor ke Excel.`, 'ok');
   },
 };
 
@@ -1653,12 +1728,26 @@ const Rekap = {
     const bulan = $('#rekapBulan').value || isoMonth();
     const baris = this.hitungKelas(bulan);
     if (!baris.length) { UI.toast('Tidak ada data pada periode ini.', 'warn'); return; }
-    unduhCSV(`rekap-per-kelas-${bulan}.csv`,
+    const t = k => baris.reduce((s, r) => s + r[k], 0);
+    const urut = [...baris].sort((a, b) => b.pct - a.pct);
+    unduhExcel(`rekap-per-kelas-${bulan}.xlsx`,
       ['No', 'Kelas', 'Wali Kelas', 'Hari Tercatat', 'Jumlah Siswa', 'Hadir',
        ...ABSEN.map(s => s.key), '% Kehadiran'],
       baris.map((r, i) => [i + 1, r.nama, r.wali, r.hari, r.siswa, r.hadir,
-        ...ABSEN.map(s => r[s.key]), r.pct + '%']));
-    UI.toast(`Rekap per kelas ${bulanPanjang(bulan)} diekspor.`, 'ok');
+        ...ABSEN.map(s => r[s.key]), r.pct + '%']), {
+        sheet: 'Rekap per Kelas',
+        judul: `REKAP PER KELAS — ${bulanPanjang(bulan).toUpperCase()} — SDI ASSURYANIYAH`,
+        kesimpulan: [
+          ['Jumlah kelas', baris.length],
+          ['Jumlah siswa', t('siswa')],
+          ['Rata-rata kehadiran', persen(t('hadir'), t('mungkin')) + '%'],
+          ...ABSEN.map(s => [`Total ${s.key}`,
+            `${t(s.key)} (${persen(t(s.key), t('mungkin'))}%)`]),
+          ['Kehadiran tertinggi', `${urut[0].nama} (${urut[0].pct}%)`],
+          ['Kehadiran terendah', `${urut[urut.length - 1].nama} (${urut[urut.length - 1].pct}%)`],
+        ],
+      });
+    UI.toast(`Rekap per kelas ${bulanPanjang(bulan)} diekspor ke Excel.`, 'ok');
   },
 
   /** Matriks bulanan: satu baris per siswa, kolom tanggal 01–31 berisi H/S/I/A. */
@@ -1717,22 +1806,67 @@ const Rekap = {
       ...Array.from({ length: jmlHari }, (_, i) => String(i + 1).padStart(2, '0')),
       'H', 'S', 'I', 'A', '% Hadir'];
 
+    // Kesimpulan: total per status, rata-rata kehadiran, siswa yang perlu perhatian
+    const tot = k => hasil.reduce((t, r) => t + r.tot[k], 0);
+    const totSemua = tot('H') + tot('S') + tot('I') + tot('A');
+    const hariEfektif = new Set(data.map(a => a.tanggal)).size;
+    const rataHadir = persen(tot('H'), totSemua);
+    const seringAbsen = hasil.filter(r => r.absen > 0 &&
+      r.absen / Math.max(1, r.tot.H + r.absen) >= 0.1);   // absen ≥ 10% hari tercatatnya
+
+    const kesimpulan = [
+      ['Periode', bulanPanjang(bulan)],
+      ['Hari efektif tercatat', hariEfektif],
+      ['Jumlah siswa', hasil.length],
+      ['Rata-rata kehadiran', rataHadir + '%'],
+      ['Total Hadir (H)', `${tot('H')} (${persen(tot('H'), totSemua)}%)`],
+      ['Total Sakit (S)', `${tot('S')} (${persen(tot('S'), totSemua)}%)`],
+      ['Total Izin (I)', `${tot('I')} (${persen(tot('I'), totSemua)}%)`],
+      ['Total Alpa (A)', `${tot('A')} (${persen(tot('A'), totSemua)}%)`],
+      ['Siswa hadir penuh', hasil.filter(r => r.absen === 0).length],
+      ['Siswa dengan absen ≥ 10%', seringAbsen.length],
+      ...(seringAbsen.length ? [['Perlu perhatian', seringAbsen.slice(0, 10)
+        .map(r => `${r.s.nama} (${r.absen}× absen)`).join(', ') +
+        (seringAbsen.length > 10 ? ', …' : '')]] : []),
+      ['Keterangan', 'H hadir, S sakit, I izin, A alpa, sel kosong = kelas tidak tercatat'],
+    ];
+
     const label = kelasId ? Store.namaKelas(kelasId).replace(/\s+/g, '') : 'semua-kelas';
-    unduhCSV(`absensi-per-tanggal-${bulan}-${label}.csv`, header, baris);
-    UI.toast(`Laporan per tanggal ${bulanPanjang(bulan)} (${baris.length} siswa) diekspor. ` +
-             'Keterangan: H hadir, S sakit, I izin, A alpa, kosong = tidak tercatat.', 'ok', 5200);
+    unduhExcel(`absensi-per-tanggal-${bulan}-${label}.xlsx`, header, baris, {
+      sheet: `Absensi ${bulan}`,
+      judul: `ABSENSI PER TANGGAL — ${bulanPanjang(bulan).toUpperCase()}` +
+             (kelasId ? ` — KELAS ${Store.namaKelas(kelasId).toUpperCase()}` : '') +
+             ' — SDI ASSURYANIYAH',
+      kesimpulan,
+    });
+    UI.toast(`Laporan per tanggal ${bulanPanjang(bulan)} (${baris.length} siswa) diekspor ke Excel ` +
+             'lengkap dengan kesimpulan.', 'ok', 5200);
   },
 
   eksporSiswa() {
     const bulan = $('#rekapBulan').value || isoMonth();
     const baris = this.hitungSiswa(bulan);
     if (!baris.length) { UI.toast('Tidak ada data pada periode ini.', 'warn'); return; }
-    unduhCSV(`rekap-per-siswa-${bulan}.csv`,
+    const totAbsen = baris.reduce((t, r) => t + r.absen, 0);
+    const totHari = baris.reduce((t, r) => t + r.hari, 0);
+    unduhExcel(`rekap-per-siswa-${bulan}.xlsx`,
       ['No', 'Nama Siswa', 'NIS', 'Kelas', 'Hari Tercatat', 'Hadir',
        ...ABSEN.map(s => s.key), 'Total Absen', '% Kehadiran'],
       baris.map((r, i) => [i + 1, r.nama, r.nis, r.kelas, r.hari, r.hadir,
-        ...ABSEN.map(s => r[s.key]), r.absen, r.pct + '%']));
-    UI.toast(`Rekap per siswa ${bulanPanjang(bulan)} diekspor.`, 'ok');
+        ...ABSEN.map(s => r[s.key]), r.absen, r.pct + '%']), {
+        sheet: 'Rekap per Siswa',
+        judul: `REKAP PER SISWA — ${bulanPanjang(bulan).toUpperCase()} — SDI ASSURYANIYAH`,
+        kesimpulan: [
+          ['Jumlah siswa', baris.length],
+          ['Rata-rata kehadiran', persen(totHari - totAbsen, totHari) + '%'],
+          ['Siswa hadir penuh', baris.filter(r => r.absen === 0).length],
+          ['Siswa pernah tidak masuk',
+            `${baris.filter(r => r.absen > 0).length} (${persen(baris.filter(r => r.absen > 0).length, baris.length)}%)`],
+          ['Paling sering absen', baris[0].absen > 0
+            ? `${baris[0].nama} — ${baris[0].kelas} (${baris[0].absen}× dari ${baris[0].hari} hari)` : '—'],
+        ],
+      });
+    UI.toast(`Rekap per siswa ${bulanPanjang(bulan)} diekspor ke Excel.`, 'ok');
   },
 };
 
@@ -1764,7 +1898,6 @@ const Jurnal = {
       try {
         const p = JSON.parse(localStorage.getItem(this.KEY_PROFIL) || '{}');
         $('#jrNama').value = p.nama || '';
-        $('#jrNip').value = p.nip || '';
         if (p.status) $('#jrStatus').value = p.status;
       } catch { /* profil rusak: biarkan kosong */ }
     }
@@ -1789,7 +1922,6 @@ const Jurnal = {
     const rec = {
       tanggal: $('#jrTanggal').value,
       nama: $('#jrNama').value.trim(),
-      nip: $('#jrNip').value.trim(),
       status: $('#jrStatus').value,
       kelas: $('#jrKelas').value.trim(),
       mapel: $('#jrMapel').value.trim(),
@@ -1825,7 +1957,7 @@ const Jurnal = {
     Store.simpanJurnal();
     try {
       localStorage.setItem(this.KEY_PROFIL,
-        JSON.stringify({ nama: rec.nama, nip: rec.nip, status: rec.status }));
+        JSON.stringify({ nama: rec.nama, status: rec.status }));
     } catch { /* profil tidak tersimpan: bukan masalah fatal */ }
 
     this.resetForm();
@@ -1840,8 +1972,7 @@ const Jurnal = {
     $('#jrId').value = j.id;
     $('#jrTanggal').value = j.tanggal;
     $('#jrNama').value = j.nama || '';
-    $('#jrNip').value = j.nip || '';
-    $('#jrStatus').value = j.status || 'GTY';
+    $('#jrStatus').value = j.status || 'WL';
     $('#jrKelas').value = j.kelas || '';
     $('#jrMapel').value = j.mapel || '';
     $('#jrJam').value = j.jam || '';
@@ -1861,18 +1992,21 @@ const Jurnal = {
 
   resetForm() {
     // Identitas guru dipertahankan; hanya isi kegiatan yang dikosongkan
-    const nama = $('#jrNama').value, nip = $('#jrNip').value, st = $('#jrStatus').value;
+    const nama = $('#jrNama').value, st = $('#jrStatus').value;
     $('#formJurnal').reset();
     $('#jrId').value = '';
     $('#jrTanggal').value = isoDate();
     $('#jrNama').value = nama;
-    $('#jrNip').value = nip;
     $('#jrStatus').value = st;
     $('#jrAutoHint').hidden = true;
     $('#jrSubmitLabel').textContent = 'Simpan Jurnal';
     $('#jrFormLabel').textContent = 'Isi Jurnal';
   },
 };
+
+/** Kode status guru → label utuh pada laporan. */
+const STATUS_GURU = { WL: 'Wali Kelas', GK: 'Guru Kelas', GM: 'Guru Mapel' };
+const labelStatusGuru = kode => STATUS_GURU[kode] || kode || '';
 
 const JurnalRiwayat = {
   init() {
@@ -1984,6 +2118,7 @@ const JurnalRiwayat = {
     if (!perTanggal.size) { UI.toast(`Tidak ada jurnal pada ${bulanPanjang(bulan)}.`, 'warn'); return; }
 
     const baris = [];
+    let terisi = 0;
     for (let h = 1; h <= jmlHari; h++) {
       const tanggal = `${bulan}-${String(h).padStart(2, '0')}`;
       const hari = HARI[hariDari(tanggal)];
@@ -1992,31 +2127,56 @@ const JurnalRiwayat = {
         baris.push([String(h).padStart(2, '0'), hari, '', '', '', '', '', '', '', '', '', '', '', '']);
         continue;
       }
+      terisi++;
       daftar.forEach(j => baris.push([
         String(h).padStart(2, '0'), hari, j.nama, j.kelas, j.mapel, j.jam, j.metode,
         j.materi, j.tujuan, j.hadir, j.tidak, j.refleksi, j.kendala, j.tindak,
       ]));
     }
 
-    unduhCSV(`laporan-jurnal-${bulan}.csv`,
+    const semuaJurnal = [...perTanggal.values()].flat();
+    const totHadir = semuaJurnal.reduce((t, j) => t + num(j.hadir), 0);
+    const totTidak = semuaJurnal.reduce((t, j) => t + num(j.tidak), 0);
+
+    unduhExcel(`laporan-jurnal-${bulan}.xlsx`,
       ['Tanggal', 'Hari', 'Nama Guru', 'Kelas', 'Mapel', 'Jam', 'Metode', 'Materi',
        'Tujuan', 'Hadir', 'Tidak Hadir', 'Refleksi', 'Kendala', 'Tindak Lanjut'],
-      baris);
-    UI.toast(`Laporan jurnal ${bulanPanjang(bulan)} diekspor (${jmlHari} tanggal).`, 'ok', 4200);
+      baris, {
+        sheet: `Jurnal ${bulan}`,
+        judul: `LAPORAN JURNAL HARIAN — ${bulanPanjang(bulan).toUpperCase()} — SDI ASSURYANIYAH`,
+        kesimpulan: [
+          ['Jumlah jurnal', semuaJurnal.length],
+          ['Tanggal terisi', `${terisi} dari ${jmlHari} hari`],
+          ['Tanggal belum terisi', jmlHari - terisi],
+          ['Total siswa hadir (akumulasi)', totHadir],
+          ['Total tidak hadir (akumulasi)',
+            `${totTidak} (${persen(totTidak, totHadir + totTidak)}%)`],
+        ],
+      });
+    UI.toast(`Laporan jurnal ${bulanPanjang(bulan)} diekspor ke Excel.`, 'ok', 4200);
   },
 
   ekspor() {
     const data = this.terfilter();
     if (!data.length) { UI.toast('Tidak ada jurnal untuk diekspor.', 'warn'); return; }
-    unduhCSV(`jurnal-harian-${isoDate()}.csv`,
-      ['Tanggal', 'Hari', 'Nama Guru', 'NIP/NUPTK', 'Status Guru', 'Kelas',
+    unduhExcel(`jurnal-harian-${isoDate()}.xlsx`,
+      ['Tanggal', 'Hari', 'Nama Guru', 'Status Guru', 'Kelas',
        'Mata Pelajaran', 'Jam Pelajaran', 'Metode Pembelajaran', 'Materi Pelajaran',
        'Tujuan Pembelajaran', 'Jumlah Hadir', 'Jumlah Tidak Hadir',
        'Refleksi Pembelajaran', 'Kendala Pembelajaran', 'Tindak Lanjut'],
-      data.map(j => [j.tanggal, HARI[hariDari(j.tanggal)], j.nama, j.nip, j.status,
+      data.map(j => [j.tanggal, HARI[hariDari(j.tanggal)], j.nama, labelStatusGuru(j.status),
         j.kelas, j.mapel, j.jam, j.metode, j.materi, j.tujuan, j.hadir, j.tidak,
-        j.refleksi, j.kendala, j.tindak]));
-    UI.toast(`${data.length} jurnal diekspor ke CSV.`, 'ok');
+        j.refleksi, j.kendala, j.tindak]), {
+        sheet: 'Jurnal Harian',
+        judul: 'JURNAL HARIAN GURU — SDI ASSURYANIYAH',
+        kesimpulan: [
+          ['Jumlah jurnal', data.length],
+          ['Rentang tanggal', `${data[data.length - 1].tanggal} s.d. ${data[0].tanggal}`],
+          ['Guru berbeda', new Set(data.map(j => norm(j.nama))).size],
+          ['Kelas berbeda', new Set(data.map(j => norm(j.kelas))).size],
+        ],
+      });
+    UI.toast(`${data.length} jurnal diekspor ke Excel.`, 'ok');
   },
 };
 

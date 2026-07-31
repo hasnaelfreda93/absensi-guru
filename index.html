@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Absensi &amp; Jurnal — SDI Assuryaniyah</title>
-<meta name="description" content="Aplikasi absensi siswa dan jurnal harian guru SDI Assuryaniyah. Kehadiran per nama siswa, jurnal mengajar, rekap bulanan, dan ekspor CSV/Excel.">
+<meta name="description" content="Aplikasi absensi siswa dan jurnal harian guru SDI Assuryaniyah. Kehadiran per nama siswa, jurnal mengajar, rekap bulanan, dan ekspor Excel.">
 <meta name="theme-color" content="#0d1b4b">
 <link rel="icon" type="image/png" href="assets/img/logo.png">
 <link rel="apple-touch-icon" href="assets/img/logo.png">
@@ -26,7 +26,7 @@
       <button type="button" class="mode-card" data-pilih="absen">
         <span class="mc-icon mc-absen"><i class="fa-solid fa-clipboard-user"></i></span>
         <span class="mc-title">Absensi Siswa</span>
-        <span class="mc-desc">Tandai kehadiran per nama siswa, rekap bulanan, dan ekspor CSV.</span>
+        <span class="mc-desc">Tandai kehadiran per nama siswa, rekap bulanan, dan ekspor Excel.</span>
       </button>
       <button type="button" class="mode-card" data-pilih="jurnal">
         <span class="mc-icon mc-jurnal"><i class="fa-solid fa-book-open"></i></span>
@@ -81,7 +81,7 @@
   <div class="hero-card">
     <div class="hero-text">
       <h1>Absensi Siswa</h1>
-      <p>Tandai kehadiran <strong>per nama siswa</strong> &mdash; cukup klik S, I, atau A untuk yang tidak masuk, sisanya otomatis hadir. Rekap bulanan dan ekspor Excel/CSV siap pakai.</p>
+      <p>Tandai kehadiran <strong>per nama siswa</strong> &mdash; cukup klik S, I, atau A untuk yang tidak masuk, sisanya otomatis hadir. Rekap bulanan dan ekspor Excel siap pakai.</p>
       <div class="hero-actions">
         <button class="btn btn-accent" data-goto="absensi"><i class="fa-solid fa-pen-to-square"></i> Isi Absensi Hari Ini</button>
         <button class="btn btn-ghost-light" data-goto="rekap"><i class="fa-solid fa-file-arrow-down"></i> Lihat Rekap</button>
@@ -263,8 +263,8 @@
       </div>
 
       <div class="table-actions">
-        <button class="btn btn-sm btn-accent" id="riwayatExport"><i class="fa-solid fa-file-csv"></i> Ekspor Rekap Harian</button>
-        <button class="btn btn-sm btn-accent" id="riwayatExportRinci"><i class="fa-solid fa-file-csv"></i> Ekspor Rinci per Siswa</button>
+        <button class="btn btn-sm btn-accent" id="riwayatExport"><i class="fa-solid fa-file-excel"></i> Ekspor Rekap Harian</button>
+        <button class="btn btn-sm btn-accent" id="riwayatExportRinci"><i class="fa-solid fa-file-excel"></i> Ekspor Rinci per Siswa</button>
         <button class="btn btn-sm btn-danger-ghost" id="riwayatHapus"><i class="fa-solid fa-trash"></i> Hapus data terfilter</button>
       </div>
     </div>
@@ -313,7 +313,7 @@
         </table>
       </div>
       <div class="table-actions">
-        <button class="btn btn-sm btn-accent" id="kelasExport"><i class="fa-solid fa-file-csv"></i> Ekspor CSV</button>
+        <button class="btn btn-sm btn-accent" id="kelasExport"><i class="fa-solid fa-file-excel"></i> Ekspor Excel</button>
       </div>
     </div>
   </div>
@@ -358,7 +358,7 @@
   </div>
 
   <div class="card">
-    <div class="card-head"><h3><i class="fa-solid fa-file-import"></i> Tambah Banyak Siswa Sekaligus</h3></div>
+    <div class="card-head"><h3><i class="fa-solid fa-file-import"></i> Impor dari Excel</h3></div>
     <div class="card-body">
       <div class="grid-2">
         <div class="field">
@@ -366,23 +366,18 @@
           <select id="imporKelas"></select>
         </div>
         <div class="field">
-          <label>Unggah berkas CSV</label>
-          <label class="btn btn-ghost file-btn"><i class="fa-solid fa-upload"></i> Pilih berkas CSV…
-            <input type="file" id="imporFile" accept=".csv,.txt,text/csv,text/plain" hidden>
+          <label>Unggah berkas Excel</label>
+          <label class="btn btn-primary file-btn"><i class="fa-solid fa-upload"></i> Pilih berkas &amp; impor…
+            <input type="file" id="imporFile" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
           </label>
         </div>
       </div>
-      <div class="field" style="margin-top:15px">
-        <label for="imporTeks">Atau tempel daftar nama (satu nama per baris)</label>
-        <textarea id="imporTeks" rows="7" placeholder="nama&#10;Intan Permata&#10;Intania Zahra&#10;Ahmad Fauzi&#10;Budi Santoso"></textarea>
-      </div>
       <p class="hint"><i class="fa-solid fa-circle-info"></i>
-        Cukup satu kolom berisi nama, satu baris satu siswa &mdash; baris judul <code>nama</code> di paling atas
-        diabaikan otomatis. Bila ingin sekalian NIS, tulis <code>Nama;NIS</code> (pemisah boleh <code>;</code>
-        <code>,</code> atau Tab); kolom nomor urut di depan dan nama yang sudah ada di kelas tersebut juga dilewati.</p>
+        Kolom dikenali otomatis dari baris judul: <code>Nama</code> (wajib), <code>NIS</code> (boleh kosong),
+        dan <code>L/P</code>. Berkas berisi <code>Nama</code> + <code>L/P</code> saja pun langsung terbaca.
+        Nomor urut di depan dan nama yang sudah ada di kelas tersebut otomatis dilewati.</p>
       <div class="form-actions">
-        <button class="btn btn-primary" id="btnImpor"><i class="fa-solid fa-file-import"></i> Impor Siswa</button>
-        <button class="btn btn-ghost" id="btnTemplate"><i class="fa-solid fa-download"></i> Unduh Template CSV</button>
+        <button class="btn btn-ghost" id="btnTemplate"><i class="fa-solid fa-download"></i> Unduh Template Excel</button>
       </div>
     </div>
   </div>
@@ -396,7 +391,7 @@
       <div class="filter-bar">
         <div class="field"><label for="siswaFltKelas">Kelas</label><select id="siswaFltKelas"><option value="">Semua kelas</option></select></div>
         <div class="field"><label for="siswaCari">Cari nama / NIS</label><input type="search" id="siswaCari" placeholder="Ketik untuk mencari…"></div>
-        <div class="field field-btn"><button class="btn btn-sm btn-accent" id="siswaExport"><i class="fa-solid fa-file-csv"></i> Ekspor CSV</button></div>
+        <div class="field field-btn"><button class="btn btn-sm btn-accent" id="siswaExport"><i class="fa-solid fa-file-excel"></i> Ekspor Excel</button></div>
         <div class="field field-btn"><button class="btn btn-sm btn-danger-ghost" id="siswaHapusKelas"><i class="fa-solid fa-trash"></i> Hapus siswa terfilter</button></div>
       </div>
       <div class="table-scroll">
@@ -423,8 +418,8 @@
         <div class="field field-btn"><button class="btn btn-sm btn-ghost" id="rekapPrint"><i class="fa-solid fa-print"></i> Cetak / PDF</button></div>
       </div>
       <p class="hint"><i class="fa-solid fa-circle-info"></i>
-        <strong>Ekspor Absensi per Tanggal</strong> menghasilkan CSV satu baris per siswa dengan kolom tanggal
-        01&ndash;31 berisi H / S / I / A &mdash; siap dibuka di Excel sebagai laporan bulanan.</p>
+        <strong>Ekspor Absensi per Tanggal</strong> menghasilkan Excel satu baris per siswa dengan kolom tanggal
+        01&ndash;31 berisi H / S / I / A, lengkap dengan baris kesimpulan di bagian bawah.</p>
     </div>
   </div>
 
@@ -454,7 +449,7 @@
           </table>
         </div>
         <div class="table-actions">
-          <button class="btn btn-sm btn-accent" id="rekapKelasExport"><i class="fa-solid fa-file-csv"></i> Ekspor CSV</button>
+          <button class="btn btn-sm btn-accent" id="rekapKelasExport"><i class="fa-solid fa-file-excel"></i> Ekspor Excel</button>
         </div>
       </div>
     </div>
@@ -476,7 +471,7 @@
           </table>
         </div>
         <div class="table-actions">
-          <button class="btn btn-sm btn-accent" id="rekapSiswaExport"><i class="fa-solid fa-file-csv"></i> Ekspor CSV</button>
+          <button class="btn btn-sm btn-accent" id="rekapSiswaExport"><i class="fa-solid fa-file-excel"></i> Ekspor Excel</button>
         </div>
       </div>
     </div>
@@ -501,14 +496,11 @@
             <input type="text" id="jrNama" required placeholder="Nama beserta gelar">
           </div>
           <div class="field">
-            <label for="jrNip">NIP/NUPTK</label>
-            <input type="text" id="jrNip" placeholder="Opsional">
-          </div>
-          <div class="field">
             <label for="jrStatus">Status Guru</label>
             <select id="jrStatus">
               <option value="WL">Wali Kelas</option>
               <option value="GK">Guru Kelas</option>
+              <option value="GM">Guru Mapel</option>
             </select>
           </div>
           <div class="field">
@@ -614,7 +606,7 @@
       </div>
 
       <div class="table-actions">
-        <button class="btn btn-sm btn-accent" id="jrExport"><i class="fa-solid fa-file-csv"></i> Ekspor CSV</button>
+        <button class="btn btn-sm btn-accent" id="jrExport"><i class="fa-solid fa-file-excel"></i> Ekspor Excel</button>
         <button class="btn btn-sm btn-danger-ghost" id="jrHapusFiltered"><i class="fa-solid fa-trash"></i> Hapus data terfilter</button>
       </div>
     </div>
@@ -692,6 +684,7 @@
   </div>
 </div>
 
+<script src="assets/js/vendor/xlsx.full.min.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

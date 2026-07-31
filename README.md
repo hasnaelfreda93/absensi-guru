@@ -19,35 +19,33 @@ dihosting di GitHub Pages.
 | --- | --- |
 | **Beranda** | Ringkasan hari ini, cincin persentase kehadiran bulan berjalan, daftar nama siswa yang tidak masuk, dan status pengisian tiap kelas. |
 | **Input Absensi** | Pilih tanggal dan kelas, lalu tandai H/S/I/A per nama siswa. Ada kotak **cari nama dengan saran otomatis** (ketik `int` → muncul Intan, Intania, …), ringkasan langsung di atas tabel, dan tombol *Tandai Semua Hadir*. Mendukung **pengisian susulan (backdate)**: navigasi *Hari sebelumnya / Hari ini*, penanda tanggal lampau, waktu terakhir disimpan, dan panel **Tanggal Belum Lengkap** (30 hari terakhir) yang bisa diklik untuk langsung mengisi. Tanggal setelah hari ini dikunci. |
-| **Riwayat** | Semua catatan tersimpan beserta **nama siswa yang tidak masuk**, filter rentang tanggal / kelas / nama, dan dua bentuk ekspor CSV. |
+| **Riwayat** | Semua catatan tersimpan beserta **nama siswa yang tidak masuk**, filter rentang tanggal / kelas / nama, dan dua bentuk ekspor Excel. |
 | **Data Kelas** | Tambah, ubah, hapus kelas dan wali kelas. Jumlah siswa terhitung otomatis. |
-| **Data Siswa** | Tambah siswa satu per satu, atau **impor banyak sekaligus** dari berkas CSV / tempelan daftar nama. Pencarian, ekspor CSV, dan template CSV. |
-| **Rekap** | Rekap per kelas dan **rekap per siswa** (diurutkan dari yang paling sering tidak masuk), ekspor CSV, cetak/PDF berkop sekolah, serta **Ekspor Absensi per Tanggal**: CSV satu baris per siswa dengan kolom tanggal 01–31 berisi H/S/I/A plus jumlah dan persentase. |
+| **Data Siswa** | Tambah siswa satu per satu, atau **impor banyak sekaligus dari berkas Excel** — kolom Nama / NIS / L-P dikenali otomatis dari baris judul. Pencarian, ekspor Excel, dan template Excel. |
+| **Rekap** | Rekap per kelas dan **rekap per siswa** (diurutkan dari yang paling sering tidak masuk), ekspor Excel, cetak/PDF berkop sekolah, serta **Ekspor Absensi per Tanggal**: Excel satu baris per siswa dengan kolom tanggal 01–31 berisi H/S/I/A plus jumlah, persentase, dan baris kesimpulan. |
 | **Pengaturan** | Hari sekolah, cadangan & pemulihan data (JSON), data contoh, hapus semua data. Tampil di kedua menu. |
 
 ## Halaman — menu Jurnal
 
 | Menu | Kegunaan |
 | --- | --- |
-| **Isi Jurnal** | Formulir jurnal harian. Identitas guru (nama, NIP, status) **diingat otomatis** untuk pengisian berikutnya. Bila kelas dan tanggal cocok dengan catatan absensi, **jumlah hadir/tidak hadir terisi otomatis** (tetap bisa diubah). Tanggal setelah hari ini dikunci. |
-| **Riwayat Jurnal** | Daftar jurnal tersimpan, filter rentang tanggal dan kata kunci, ubah/hapus, ekspor CSV lengkap 16 kolom, serta **Laporan Bulanan**: satu baris per tanggal (01 sampai akhir bulan) — tanggal tanpa jurnal tetap tampil kosong agar terlihat mana yang belum diisi. |
+| **Isi Jurnal** | Formulir jurnal harian. Identitas guru (nama dan status — Wali Kelas / Guru Kelas / Guru Mapel) **diingat otomatis** untuk pengisian berikutnya. Bila kelas dan tanggal cocok dengan catatan absensi, **jumlah hadir/tidak hadir terisi otomatis** (tetap bisa diubah). Tanggal setelah hari ini dikunci. |
+| **Riwayat Jurnal** | Daftar jurnal tersimpan, filter rentang tanggal dan kata kunci, ubah/hapus, ekspor Excel lengkap, serta **Laporan Bulanan**: satu baris per tanggal (01 sampai akhir bulan) — tanggal tanpa jurnal tetap tampil kosong agar terlihat mana yang belum diisi. |
 
-## Impor daftar siswa
+## Impor daftar siswa (Excel)
 
-Bentuk paling sederhana — satu kolom nama, boleh diawali baris judul `nama`:
+Siapkan berkas Excel dengan baris judul, lalu unggah — kolom dikenali otomatis:
 
-```
-nama
-Intan Permata
-Intania Zahra
-Ahmad Fauzi
-```
+| Nama | NIS | L/P |
+| --- | --- | --- |
+| Intan Permata | 2024001 | P |
+| Ahmad Fauzi | | L |
 
-Bila ingin sekalian NIS, tulis `Nama;NIS` (pemisah boleh `;` `,` atau Tab).
-Yang ditangani otomatis: baris judul, BOM dari Excel, kolom nomor urut di depan
-(`1;Intan;2024001`), NIS yang ditulis lebih dulu, sel berkutip, baris kosong,
-serta nama yang sudah ada di kelas tersebut (dilewati, tidak menggandakan).
-Tekan **Unduh Template CSV** untuk mendapatkan berkas contoh.
+`Nama` wajib; `NIS` dan `L/P` boleh kosong — berkas berisi `Nama` + `L/P` saja
+pun langsung terbaca. Yang ditangani otomatis: kolom nomor urut di depan,
+berkas tanpa baris judul (isi sel ditebak dari bentuknya), serta nama yang
+sudah ada di kelas tersebut (dilewati, tidak menggandakan).
+Tekan **Unduh Template Excel** untuk mendapatkan berkas contoh.
 
 ## Catatan perilaku
 
@@ -56,7 +54,7 @@ Tekan **Unduh Template CSV** untuk mendapatkan berkas contoh.
 - **Ramah ponsel** — di layar sempit tabel input berubah menjadi kartu per siswa dengan tombol H/S/I/A besar yang nyaman disentuh; seluruh halaman bebas guliran mendatar.
 - Hanya siswa yang **tidak** hadir yang disimpan, sehingga data tetap ringkas: 7 kelas / 179 siswa / 14 hari ≈ 37 KB.
 - **Jumlah siswa dicuplik saat penyimpanan**, sehingga rekap bulan lalu tidak berubah ketika daftar siswa diperbarui.
-- Seluruh ekspor CSV memakai pemisah `;` dan BOM UTF-8, jadi langsung rapi saat dibuka di Excel.
+- Seluruh laporan diekspor sebagai **Excel (.xlsx)** berjudul rapi dan diakhiri bagian **KESIMPULAN** (rata-rata kehadiran, total per status, siswa dengan absen ≥ 10%, dst.).
 - Data disimpan di `localStorage` browser dan **tidak dikirim ke server mana pun**.
 
 ## Struktur berkas
@@ -67,6 +65,7 @@ Tekan **Unduh Template CSV** untuk mendapatkan berkas contoh.
 ├── assets/
 │   ├── css/style.css       # Tema — warna & font mengikuti identitas sekolah
 │   ├── js/app.js           # Logika aplikasi, modul bernomor 1–13
+│   ├── js/vendor/xlsx.full.min.js  # SheetJS — baca/tulis berkas Excel (offline)
 │   └── img/logo.png        # Logo SDI Assuryaniyah
 ├── .nojekyll
 └── README.md
@@ -107,10 +106,10 @@ maupun di subfolder repositori.
 ## Pemakaian pertama
 
 1. **Data Kelas** → masukkan seluruh kelas beserta wali kelasnya.
-2. **Data Siswa** → pilih kelas, lalu impor daftar nama dari CSV atau tempelkan.
+2. **Data Siswa** → pilih kelas, lalu impor daftar nama dari berkas Excel.
    Ingin mencoba dahulu? Tekan **Muat Data Contoh** di halaman Pengaturan.
 3. Setiap hari, **Input Absensi** → pilih kelas → klik S/I/A pada yang tidak masuk → **Simpan Absensi**.
-4. Akhir bulan, **Rekap** → **Ekspor CSV** atau **Cetak / PDF**.
+4. Akhir bulan, **Rekap** → **Ekspor Excel** atau **Cetak / PDF**.
 5. Unduh **Cadangan (JSON)** secara berkala dari halaman Pengaturan.
 
 > **Penting:** data tersimpan per browser per perangkat. Membersihkan data situs
