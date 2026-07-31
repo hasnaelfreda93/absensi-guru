@@ -17,7 +17,7 @@
      10. HAL. DATA SISWA  — CRUD siswa, impor/ekspor Excel
      11. HAL. REKAP       — rekap per kelas & per siswa, ekspor, cetak
      11b.HAL. JURNAL      — isi jurnal harian + riwayat, ekspor
-     12. HAL. PENGATURAN  — hari sekolah, cadangan data
+     12. HAL. PENGATURAN  — hari sekolah
      12b.GOOGLE DRIVE     — sinkronisasi data lintas perangkat
      13. INIT             — perakitan seluruh modul
    ============================================================ */
@@ -104,15 +104,6 @@ const norm = s => String(s ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
 const bandingNama = (a, b) =>
   String(a).localeCompare(String(b), 'id', { numeric: true, sensitivity: 'base' });
 
-/** Unduh berkas dari string di sisi klien. */
-function unduh(namaFile, isi, mime = 'text/plain;charset=utf-8') {
-  const url = URL.createObjectURL(new Blob([isi], { type: mime }));
-  const a = Object.assign(document.createElement('a'), { href: url, download: namaFile });
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
-}
 
 /** Pustaka Excel (930 KB) dimuat malas — hanya saat ekspor/impor pertama —
     agar pembukaan aplikasi di HP tidak terbebani parse JS sebesar itu. */
@@ -270,11 +261,6 @@ const Store = {
       b.tanggal.localeCompare(a.tanggal) || (b.ts || 0) - (a.ts || 0));
   },
 
-  ukuran() {
-    const n = [this.KEY_KELAS, this.KEY_SISWA, this.KEY_ABSEN, this.KEY_JURNAL, this.KEY_SET]
-      .reduce((t, k) => t + (localStorage.getItem(k) || '').length, 0);
-    return n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`;
-  },
 };
 
 /** Jumlah siswa hadir pada satu catatan kelas. */
@@ -2221,10 +2207,6 @@ const Pengaturan = {
     });
 
     $('#formSetting').addEventListener('submit', e => { e.preventDefault(); this.simpan(); });
-    $('#btnBackup').addEventListener('click', () => this.cadangkan());
-    $('#fileRestore').addEventListener('change', e => this.pulihkan(e));
-    $('#btnSeed').addEventListener('click', () => this.muatContoh());
-    $('#btnWipe').addEventListener('click', () => this.hapusSemua());
   },
 
   render() {
@@ -2236,95 +2218,14 @@ const Pengaturan = {
     this.renderStat();
   },
 
-  renderStat() {
-    UI.hitungAngka($('#dbKelas'), Store.kelas.length);
-    UI.hitungAngka($('#dbSiswa'), Store.siswa.length);
-    UI.hitungAngka($('#dbAbsen'), Store.absen.length);
-    UI.hitungAngka($('#dbJurnal'), Store.jurnal.length);
-    $('#dbSize').textContent = Store.ukuran();
-  },
+  /** Kartu statistik data lokal sudah dihapus dari UI; metode ini
+      dipertahankan sebagai no-op karena masih dipanggil banyak modul. */
+  renderStat() {},
 
   simpan() {
     Store.setting.hariSekolah = $$('#hariKerjaRow input:checked').map(i => Number(i.value));
     Store.simpanSetting();
     UI.toast('Pengaturan tersimpan.', 'ok');
-  },
-
-  cadangkan() {
-    const isi = JSON.stringify({
-      aplikasi: 'Absensi & Jurnal SDI Assuryaniyah',
-      versi: 3,
-      dibuat: new Date().toISOString(),
-      setting: Store.setting,
-      kelas: Store.kelas,
-      siswa: Store.siswa,
-      absen: Store.absen,
-      jurnal: Store.jurnal,
-    }, null, 2);
-    unduh(`cadangan-absensi-jurnal-${isoDate()}.json`, isi, 'application/json');
-    UI.toast('Cadangan berhasil diunduh.', 'ok');
-  },
-
-  pulihkan(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const d = JSON.parse(reader.result);
-        if (!Array.isArray(d.kelas) || !Array.isArray(d.siswa) || !Array.isArray(d.absen)) {
-          throw new Error('format');
-        }
-        const jmlJurnal = Array.isArray(d.jurnal) ? d.jurnal.length : 0;
-        const ok = await UI.konfirmasi('Pulihkan Cadangan',
-          `Berkas memuat ${d.kelas.length} kelas, ${d.siswa.length} siswa, ` +
-          `${d.absen.length} catatan absensi, dan ${jmlJurnal} jurnal. ` +
-          'Seluruh data saat ini akan diganti.', 'Ya, Pulihkan');
-        if (!ok) return;
-        Store.kelas = d.kelas;
-        Store.siswa = d.siswa;
-        Store.absen = d.absen;
-        Store.jurnal = Array.isArray(d.jurnal) ? d.jurnal : [];   // cadangan lama tanpa jurnal
-        Store.setting = { ...Store.SETTING_DEFAULT, ...(d.setting || {}) };
-        Store.simpanKelas(); Store.simpanSiswa(); Store.simpanAbsen();
-        Store.simpanJurnal(); Store.simpanSetting();
-        UI.toast('Data berhasil dipulihkan.', 'ok');
-        renderSemua();
-      } catch {
-        UI.toast('Berkas cadangan tidak dikenali.', 'err');
-      } finally {
-        e.target.value = '';
-      }
-    };
-    reader.readAsText(file);
-  },
-
-  async muatContoh() {
-    if (Store.kelas.length || Store.siswa.length) {
-      const ok = await UI.konfirmasi('Muat Data Contoh',
-        'Data contoh akan menimpa seluruh data yang ada. Lanjutkan?', 'Ya, Muat Contoh');
-      if (!ok) return;
-    }
-    const d = buatDataContoh();
-    Store.kelas = d.kelas;
-    Store.siswa = d.siswa;
-    Store.absen = d.absen;
-    Store.simpanKelas(); Store.simpanSiswa(); Store.simpanAbsen();
-    UI.toast(`Data contoh dimuat: ${d.kelas.length} kelas, ${d.siswa.length} siswa.`, 'ok');
-    renderSemua();
-    Router.buka('dashboard');
-  },
-
-  async hapusSemua() {
-    const ok = await UI.konfirmasi('Hapus Semua Data',
-      'Seluruh data kelas, siswa, absensi, jurnal, dan pengaturan akan dihapus permanen ' +
-      'dari browser ini. Tindakan tidak dapat dibatalkan.', 'Ya, Hapus Semua');
-    if (!ok) return;
-    [Store.KEY_KELAS, Store.KEY_SISWA, Store.KEY_ABSEN, Store.KEY_JURNAL, Store.KEY_SET]
-      .forEach(k => localStorage.removeItem(k));
-    Store.muat();
-    UI.toast('Seluruh data telah dihapus.', 'ok');
-    renderSemua();
   },
 };
 
@@ -2763,7 +2664,7 @@ function init() {
 
   if (!Store.kelas.length && !Store.siswa.length) {
     setTimeout(() => UI.toast(
-      'Selamat datang! Mulai dari Data Kelas, lalu Data Siswa. Ingin mencoba dahulu? Muat Data Contoh di Pengaturan.',
+      'Selamat datang! Hubungkan Google Drive di Pengaturan agar data tersimpan aman, lalu mulai dari Data Kelas dan Data Siswa.',
       'info', 7000), 700);
   }
 }

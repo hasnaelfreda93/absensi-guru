@@ -23,7 +23,7 @@ dihosting di GitHub Pages.
 | **Data Kelas** | Tambah, ubah, hapus kelas dan wali kelas. Jumlah siswa terhitung otomatis. |
 | **Data Siswa** | Tambah siswa satu per satu, atau **impor banyak sekaligus dari berkas Excel** — kolom Nama / NIS / L-P dikenali otomatis dari baris judul. Pencarian, ekspor Excel, dan template Excel. |
 | **Rekap** | Rekap per kelas dan **rekap per siswa** (diurutkan dari yang paling sering tidak masuk), ekspor Excel, cetak/PDF berkop sekolah, serta **Ekspor Absensi per Tanggal**: Excel satu baris per siswa dengan kolom tanggal 01–31 berisi H/S/I/A plus jumlah, persentase, dan baris kesimpulan. |
-| **Pengaturan** | Hari sekolah, **Sinkronisasi Google Drive**, cadangan & pemulihan data (JSON), data contoh, hapus semua data. Tampil di kedua menu. |
+| **Pengaturan** | Hari sekolah dan **Sinkronisasi Google Drive**. Tampil di kedua menu. |
 
 ## Halaman — menu Jurnal
 
@@ -55,12 +55,12 @@ Tekan **Unduh Template Excel** untuk mendapatkan berkas contoh.
 - Hanya siswa yang **tidak** hadir yang disimpan, sehingga data tetap ringkas: 7 kelas / 179 siswa / 14 hari ≈ 37 KB.
 - **Jumlah siswa dicuplik saat penyimpanan**, sehingga rekap bulan lalu tidak berubah ketika daftar siswa diperbarui.
 - Seluruh laporan diekspor sebagai **Excel (.xlsx)** berjudul rapi dan diakhiri bagian **KESIMPULAN** (rata-rata kehadiran, total per status, siswa dengan absen ≥ 10%, dst.).
-- Data disimpan di `localStorage` browser. Bila **Sinkronisasi Google Drive** diaktifkan, data juga disimpan ke Drive akun yang login (lihat bagian di bawah); selain itu tidak ada server lain.
+- Data dikerjakan di `localStorage` browser dan **disinkronkan ke Google Drive** akun yang login (lihat bagian di bawah) — tidak ada server lain.
 
-## Sinkronisasi Google Drive (opsional)
+## Sinkronisasi Google Drive
 
-Aktifkan dari **Pengaturan → Sinkronisasi Google Drive** agar data bisa diakses
-lintas perangkat:
+Hubungkan dari **Pengaturan → Sinkronisasi Google Drive** — inilah penyimpanan
+utama & cadangan aplikasi:
 
 - Login Google → aplikasi otomatis membuat jalur
   `sdi-assuryaniyah/data-aplikasi-jurnal-absen/data-aplikasi-jurnal-absen.json`
@@ -139,7 +139,9 @@ maupun di subfolder repositori.
    Ingin mencoba dahulu? Tekan **Muat Data Contoh** di halaman Pengaturan.
 3. Setiap hari, **Input Absensi** → pilih kelas → klik S/I/A pada yang tidak masuk → **Simpan Absensi**.
 4. Akhir bulan, **Rekap** → **Ekspor Excel** atau **Cetak / PDF**.
-5. Unduh **Cadangan (JSON)** secara berkala dari halaman Pengaturan.
+5. Pastikan **Google Drive terhubung** (Pengaturan) agar data tersimpan aman.
 
-> **Penting:** data tersimpan per browser per perangkat. Membersihkan data situs
-> atau berpindah perangkat akan menghilangkan catatan — selalu simpan cadangan JSON.
+> **Penting:** tanpa Google Drive, data hanya ada di browser perangkat itu —
+> membersihkan data situs akan menghilangkannya. Hubungkan Drive dan datanya
+> ikut tersimpan di `sdi-assuryaniyah/data-aplikasi-jurnal-absen/` pada akun
+> Google yang login.
