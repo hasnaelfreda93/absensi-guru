@@ -2321,8 +2321,8 @@ const Pengaturan = {
 
 const Drive = {
   // Diisi admin agar seluruh perangkat langsung siap tanpa mengetik ulang;
-  // dapat juga diisi per perangkat lewat kotak Client ID di Pengaturan.
-  CLIENT_ID_DEFAULT: '',
+  // dapat juga diganti per perangkat lewat kotak Client ID di Pengaturan.
+  CLIENT_ID_DEFAULT: '419141113676-v75rdp8imkh5imd4d2tfop6bj9oc9u8q.apps.googleusercontent.com',
 
   KEY_CID:  'as_gdrive_cid',
   KEY_ON:   'as_gdrive_on',
