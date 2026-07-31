@@ -23,7 +23,7 @@ dihosting di GitHub Pages.
 | **Data Kelas** | Tambah, ubah, hapus kelas dan wali kelas. Jumlah siswa terhitung otomatis. |
 | **Data Siswa** | Tambah siswa satu per satu, atau **impor banyak sekaligus dari berkas Excel** — kolom Nama / NIS / L-P dikenali otomatis dari baris judul. Pencarian, ekspor Excel, dan template Excel. |
 | **Rekap** | Rekap per kelas dan **rekap per siswa** (diurutkan dari yang paling sering tidak masuk), ekspor Excel, cetak/PDF berkop sekolah, serta **Ekspor Absensi per Tanggal**: Excel satu baris per siswa dengan kolom tanggal 01–31 berisi H/S/I/A plus jumlah, persentase, dan baris kesimpulan. |
-| **Pengaturan** | Hari sekolah, cadangan & pemulihan data (JSON), data contoh, hapus semua data. Tampil di kedua menu. |
+| **Pengaturan** | Hari sekolah, **Sinkronisasi Google Drive**, cadangan & pemulihan data (JSON), data contoh, hapus semua data. Tampil di kedua menu. |
 
 ## Halaman — menu Jurnal
 
@@ -55,7 +55,36 @@ Tekan **Unduh Template Excel** untuk mendapatkan berkas contoh.
 - Hanya siswa yang **tidak** hadir yang disimpan, sehingga data tetap ringkas: 7 kelas / 179 siswa / 14 hari ≈ 37 KB.
 - **Jumlah siswa dicuplik saat penyimpanan**, sehingga rekap bulan lalu tidak berubah ketika daftar siswa diperbarui.
 - Seluruh laporan diekspor sebagai **Excel (.xlsx)** berjudul rapi dan diakhiri bagian **KESIMPULAN** (rata-rata kehadiran, total per status, siswa dengan absen ≥ 10%, dst.).
-- Data disimpan di `localStorage` browser dan **tidak dikirim ke server mana pun**.
+- Data disimpan di `localStorage` browser. Bila **Sinkronisasi Google Drive** diaktifkan, data juga disimpan ke Drive akun yang login (lihat bagian di bawah); selain itu tidak ada server lain.
+
+## Sinkronisasi Google Drive (opsional)
+
+Aktifkan dari **Pengaturan → Sinkronisasi Google Drive** agar data bisa diakses
+lintas perangkat:
+
+- Login Google → aplikasi otomatis membuat jalur
+  `sdi-assuryaniyah/data-aplikasi-jurnal-absen/data-aplikasi-jurnal-absen.json`
+  di Drive akun tersebut (scope `drive.file` — aplikasi hanya bisa menyentuh
+  berkas buatannya sendiri, bukan seluruh isi Drive).
+- Setiap perubahan **menimpa berkas yang sama** (tidak menumpuk berkas baru),
+  dikirim otomatis beberapa detik setelah perubahan.
+- Saat aplikasi dibuka, data dibandingkan berdasarkan cap waktu — **yang lebih
+  baru dipakai** (Drive → perangkat, atau perangkat → Drive).
+- Login diingat: selama sesi Google di browser masih aktif, sambung ulang
+  berjalan otomatis tanpa dialog.
+- Tersedia tombol manual **Tarik dari Drive** / **Kirim ke Drive** / **Putuskan**.
+
+**Setup sekali oleh admin** (± 5 menit, gratis) di
+[console.cloud.google.com](https://console.cloud.google.com):
+
+1. Buat project baru → **Enable API** → aktifkan *Google Drive API*.
+2. **OAuth consent screen** → External → isi nama aplikasi → **Publish**.
+3. **Credentials → Create Credentials → OAuth Client ID** → tipe *Web application*
+   → pada *Authorized JavaScript origins* tambahkan alamat aplikasi
+   (`https://<username>.github.io`).
+4. Salin **Client ID** → tempel di Pengaturan → *Simpan Client ID* (sekali per
+   perangkat), atau isi konstanta `CLIENT_ID_DEFAULT` di `assets/js/app.js`
+   agar seluruh perangkat langsung siap.
 
 ## Struktur berkas
 

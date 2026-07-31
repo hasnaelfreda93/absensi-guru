@@ -18,6 +18,7 @@
      11. HAL. REKAP       — rekap per kelas & per siswa, ekspor, cetak
      11b.HAL. JURNAL      — isi jurnal harian + riwayat, ekspor
      12. HAL. PENGATURAN  — hari sekolah, cadangan data
+     12b.GOOGLE DRIVE     — sinkronisasi data lintas perangkat
      13. INIT             — perakitan seluruh modul
    ============================================================ */
 'use strict';
@@ -187,9 +188,18 @@ const Store = {
   _tulis(key, val) {
     try {
       localStorage.setItem(key, JSON.stringify(val));
+      localStorage.setItem('as_last_change', String(Date.now()));
     } catch {
       UI.toast('Penyimpanan browser penuh. Unduh cadangan lalu hapus sebagian data.', 'err');
     }
+    // Bila tersambung ke Google Drive, jadwalkan pengiriman otomatis
+    if (typeof Drive !== 'undefined' && Drive.terhubung()) Drive.jadwalkanPush();
+  },
+
+  /** Cap waktu perubahan lokal terakhir (untuk memilih data terbaru saat sinkron). */
+  waktuUbah() {
+    try { return Number(localStorage.getItem('as_last_change')) || 0; }
+    catch { return 0; }
   },
 
   simpanKelas()   { this._tulis(this.KEY_KELAS, this.kelas); },
@@ -2298,6 +2308,332 @@ const Pengaturan = {
   },
 };
 
+/* ===== 12b. SINKRONISASI GOOGLE DRIVE ===================== */
+
+/*  Data JSON disimpan di Drive akun yang login, pada jalur
+    sdi-assuryaniyah / data-aplikasi-jurnal-absen / data-aplikasi-jurnal-absen.json
+    (folder dibuat otomatis bila belum ada, memakai scope drive.file
+    sehingga aplikasi hanya bisa menyentuh berkas buatannya sendiri).
+
+    Alur: login Google → pastikan jalur → bandingkan cap waktu (ts)
+    lokal vs Drive → pakai yang lebih baru. Setelahnya setiap
+    perubahan lokal dikirim otomatis (debounce 4 detik).             */
+
+const Drive = {
+  // Diisi admin agar seluruh perangkat langsung siap tanpa mengetik ulang;
+  // dapat juga diisi per perangkat lewat kotak Client ID di Pengaturan.
+  CLIENT_ID_DEFAULT: '',
+
+  KEY_CID:  'as_gdrive_cid',
+  KEY_ON:   'as_gdrive_on',
+  KEY_FILE: 'as_gdrive_fileid',
+  FOLDER_INDUK: 'sdi-assuryaniyah',
+  FOLDER_ANAK:  'data-aplikasi-jurnal-absen',
+  NAMA_BERKAS:  'data-aplikasi-jurnal-absen.json',
+  SCOPE: 'https://www.googleapis.com/auth/drive.file',
+
+  token: null,
+  email: '',
+  tokenClient: null,
+  timerPush: null,
+  sibuk: false,
+
+  /* --- keadaan --- */
+  terhubung() { return !!this.token; },
+  siapPustaka() { return typeof google !== 'undefined' && !!google.accounts?.oauth2; },
+
+  cid() {
+    try { return localStorage.getItem(this.KEY_CID) || this.CLIENT_ID_DEFAULT; }
+    catch { return this.CLIENT_ID_DEFAULT; }
+  },
+
+  _ingat(key, val) {
+    try { val === null ? localStorage.removeItem(key) : localStorage.setItem(key, val); }
+    catch { /* mode privat: sesi ini saja */ }
+  },
+  _baca(key) {
+    try { return localStorage.getItem(key) || ''; } catch { return ''; }
+  },
+
+  init() {
+    $('#gdCid').value = this.cid();
+    $('#gdSimpanCid').addEventListener('click', () => {
+      this._ingat(this.KEY_CID, $('#gdCid').value.trim() || null);
+      this.tokenClient = null;               // client dibangun ulang dengan ID baru
+      UI.toast('Client ID tersimpan di perangkat ini.', 'ok');
+    });
+    $('#gdHubung').addEventListener('click', () => this.hubungkan(false));
+    $('#gdPutus').addEventListener('click', () => this.putuskan());
+    $('#gdTarik').addEventListener('click', async () => {
+      const ok = await UI.konfirmasi('Tarik dari Drive',
+        'Data di perangkat ini akan diganti dengan data dari Google Drive. Lanjutkan?', 'Ya, Tarik');
+      if (ok) this.tarik(true);
+    });
+    $('#gdKirim').addEventListener('click', () => this.kirim(true));
+
+    // Pernah terhubung → coba sambung ulang senyap saat aplikasi dibuka
+    if (this._baca(this.KEY_ON) === '1') {
+      const coba = (sisa) => {
+        if (this.siapPustaka()) { this.hubungkan(true); return; }
+        if (sisa > 0) setTimeout(() => coba(sisa - 1), 500);   // tunggu pustaka GIS
+      };
+      setTimeout(() => coba(10), 500);
+    }
+    this.render();
+  },
+
+  render() {
+    const pill = $('#gdStatus');
+    if (this.terhubung()) {
+      pill.textContent = this.email ? `Terhubung • ${this.email}` : 'Terhubung';
+      pill.style.background = '#d1fae5';
+      pill.style.color = '#047857';
+    } else {
+      pill.textContent = 'Tidak terhubung';
+      pill.style.background = '';
+      pill.style.color = '';
+    }
+    $('#gdHubung').disabled = this.terhubung();
+    ['#gdTarik', '#gdKirim', '#gdPutus'].forEach(s => { $(s).disabled = !this.terhubung(); });
+  },
+
+  /* --- login --- */
+  _pastikanClient() {
+    if (!this.siapPustaka()) {
+      UI.toast('Pustaka Google belum termuat — pastikan ada koneksi internet, lalu muat ulang.', 'err', 5000);
+      return null;
+    }
+    if (!this.cid()) {
+      UI.toast('Isi Client ID Google terlebih dahulu (lihat petunjuk di kartu Google Drive).', 'warn', 5500);
+      return null;
+    }
+    if (!this.tokenClient) {
+      this.tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: this.cid(),
+        scope: this.SCOPE,
+        callback: () => {},
+        error_callback: () => { this.render(); },
+      });
+    }
+    return this.tokenClient;
+  },
+
+  hubungkan(senyap) {
+    const tc = this._pastikanClient();
+    if (!tc) return;
+    tc.callback = async resp => {
+      if (resp.error || !resp.access_token) {
+        if (!senyap) UI.toast('Login Google gagal atau dibatalkan.', 'err');
+        this.render();
+        return;
+      }
+      this.token = resp.access_token;
+      this._ingat(this.KEY_ON, '1');
+      // Token berlaku ±1 jam → perbarui senyap sebelum kedaluwarsa
+      setTimeout(() => { if (this.terhubung()) this.hubungkan(true); },
+        Math.max(60, (Number(resp.expires_in) || 3600) - 120) * 1000);
+      await this._setelahLogin(senyap);
+    };
+    // prompt '' : tanpa dialog bila izin sudah pernah diberikan & sesi Google aktif
+    try { tc.requestAccessToken({ prompt: '' }); }
+    catch { if (!senyap) UI.toast('Tidak dapat membuka jendela login Google.', 'err'); }
+  },
+
+  async _setelahLogin(senyap) {
+    try {
+      await this._ambilEmail();
+      this.render();
+      await this.sinkron(senyap);
+    } catch (err) {
+      if (!senyap) UI.toast(`Gagal menyiapkan Drive: ${err.message}`, 'err', 5000);
+      this.render();
+    }
+  },
+
+  putuskan() {
+    if (this.siapPustaka() && this.token) {
+      try { google.accounts.oauth2.revoke(this.token, () => {}); } catch { /* abaikan */ }
+    }
+    this.token = null;
+    this.email = '';
+    this._ingat(this.KEY_ON, null);
+    this._ingat(this.KEY_FILE, null);
+    UI.toast('Google Drive diputuskan. Data lokal tetap ada.', 'info', 4200);
+    this.render();
+  },
+
+  /* --- panggilan API --- */
+  async _api(path, opts = {}) {
+    const r = await fetch('https://www.googleapis.com' + path, {
+      ...opts,
+      headers: { Authorization: `Bearer ${this.token}`, ...(opts.headers || {}) },
+    });
+    if (r.status === 401) {                 // token kedaluwarsa
+      this.token = null;
+      this.render();
+      throw new Error('sesi Google berakhir — hubungkan ulang');
+    }
+    if (!r.ok) throw new Error(`Drive HTTP ${r.status}`);
+    return r;
+  },
+
+  async _ambilEmail() {
+    try {
+      const r = await this._api('/drive/v3/about?fields=user(emailAddress)');
+      this.email = (await r.json()).user?.emailAddress || '';
+    } catch { this.email = ''; }
+  },
+
+  /* --- jalur folder & berkas --- */
+  async _folder(nama, indukId) {
+    const q = encodeURIComponent(
+      `name='${nama}' and mimeType='application/vnd.google-apps.folder' and '${indukId}' in parents and trashed=false`);
+    const r = await this._api(`/drive/v3/files?q=${q}&fields=files(id)`);
+    const ada = (await r.json()).files;
+    if (ada?.length) return ada[0].id;
+    const buat = await this._api('/drive/v3/files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nama, mimeType: 'application/vnd.google-apps.folder', parents: [indukId] }),
+    });
+    return (await buat.json()).id;
+  },
+
+  /** Pastikan jalur lengkap ada; kembalikan id berkas JSON. */
+  async _pastikanBerkas() {
+    const cache = this._baca(this.KEY_FILE);
+    if (cache) {
+      try {
+        await this._api(`/drive/v3/files/${cache}?fields=id,trashed`);
+        return cache;
+      } catch { this._ingat(this.KEY_FILE, null); }   // berkas dihapus → buat ulang
+    }
+    const induk = await this._folder(this.FOLDER_INDUK, 'root');
+    const anak = await this._folder(this.FOLDER_ANAK, induk);
+    const q = encodeURIComponent(`name='${this.NAMA_BERKAS}' and '${anak}' in parents and trashed=false`);
+    const r = await this._api(`/drive/v3/files?q=${q}&fields=files(id)`);
+    const ada = (await r.json()).files;
+    let id;
+    if (ada?.length) {
+      id = ada[0].id;
+    } else {
+      const meta = JSON.stringify({ name: this.NAMA_BERKAS, parents: [anak] });
+      const batas = 'batas_sdia_' + Date.now().toString(36);
+      const body =
+        `--${batas}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
+        `--${batas}\r\nContent-Type: application/json\r\n\r\n{}\r\n--${batas}--`;
+      const buat = await this._api('/upload/drive/v3/files?uploadType=multipart&fields=id', {
+        method: 'POST',
+        headers: { 'Content-Type': `multipart/related; boundary=${batas}` },
+        body,
+      });
+      id = (await buat.json()).id;
+    }
+    this._ingat(this.KEY_FILE, id);
+    return id;
+  },
+
+  /* --- muatan --- */
+  _muatan() {
+    return {
+      aplikasi: 'Absensi & Jurnal SDI Assuryaniyah',
+      versi: 3,
+      ts: Store.waktuUbah() || Date.now(),
+      dibuat: new Date().toISOString(),
+      setting: Store.setting,
+      kelas: Store.kelas,
+      siswa: Store.siswa,
+      absen: Store.absen,
+      jurnal: Store.jurnal,
+    };
+  },
+
+  _terapkan(d) {
+    Store.kelas = Array.isArray(d.kelas) ? d.kelas : [];
+    Store.siswa = Array.isArray(d.siswa) ? d.siswa : [];
+    Store.absen = Array.isArray(d.absen) ? d.absen : [];
+    Store.jurnal = Array.isArray(d.jurnal) ? d.jurnal : [];
+    Store.setting = { ...Store.SETTING_DEFAULT, ...(d.setting || {}) };
+    Store.simpanKelas(); Store.simpanSiswa(); Store.simpanAbsen();
+    Store.simpanJurnal(); Store.simpanSetting();
+    renderSemua();
+  },
+
+  /* --- sinkronisasi --- */
+
+  /** Saat tersambung: bandingkan cap waktu, pakai yang lebih baru. */
+  async sinkron(senyap) {
+    if (this.sibuk) return;
+    this.sibuk = true;
+    try {
+      const id = await this._pastikanBerkas();
+      let jauh = null;
+      try {
+        const r = await this._api(`/drive/v3/files/${id}?alt=media`);
+        jauh = await r.json();
+      } catch { jauh = null; }
+
+      const adaJauh = jauh && Array.isArray(jauh.kelas);
+      const tsJauh = adaJauh ? (Number(jauh.ts) || 0) : 0;
+      const tsLokal = Store.waktuUbah();
+      const adaLokal = Store.kelas.length || Store.siswa.length ||
+                       Store.absen.length || Store.jurnal.length;
+
+      if (adaJauh && (!adaLokal || tsJauh > tsLokal)) {
+        this._terapkan(jauh);
+        if (!senyap || tsJauh > tsLokal) {
+          UI.toast(`Data terbaru diambil dari Google Drive (${jauh.kelas.length} kelas, ` +
+                   `${(jauh.siswa || []).length} siswa).`, 'ok', 4500);
+        }
+      } else if (adaLokal) {
+        await this._unggah(id);
+        if (!senyap) UI.toast('Data perangkat ini dikirim ke Google Drive.', 'ok', 4000);
+      }
+    } finally {
+      this.sibuk = false;
+    }
+  },
+
+  async _unggah(id) {
+    await this._api(`/upload/drive/v3/files/${id}?uploadType=media`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(this._muatan()),
+    });
+  },
+
+  /** Pengiriman otomatis setelah perubahan lokal (debounce 4 detik). */
+  jadwalkanPush() {
+    clearTimeout(this.timerPush);
+    this.timerPush = setTimeout(() => this.kirim(false), 4000);
+  },
+
+  async kirim(manual) {
+    if (!this.terhubung()) return;
+    try {
+      const id = await this._pastikanBerkas();
+      await this._unggah(id);
+      if (manual) UI.toast('Data dikirim ke Google Drive.', 'ok');
+    } catch (err) {
+      if (manual) UI.toast(`Gagal mengirim: ${err.message}`, 'err', 5000);
+    }
+  },
+
+  async tarik(manual) {
+    if (!this.terhubung()) return;
+    try {
+      const id = await this._pastikanBerkas();
+      const r = await this._api(`/drive/v3/files/${id}?alt=media`);
+      const d = await r.json();
+      if (!d || !Array.isArray(d.kelas)) throw new Error('isi berkas tidak dikenali');
+      this._terapkan(d);
+      if (manual) UI.toast('Data dari Google Drive diterapkan.', 'ok');
+    } catch (err) {
+      if (manual) UI.toast(`Gagal menarik: ${err.message}`, 'err', 5000);
+    }
+  },
+};
+
 /* ===== DATA CONTOH ======================================== */
 
 function buatDataContoh() {
@@ -2397,6 +2733,7 @@ function init() {
   Jurnal.init();
   JurnalRiwayat.init();
   Pengaturan.init();
+  Drive.init();
   Mode.init();
   Router.init();
 

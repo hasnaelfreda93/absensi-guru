@@ -635,6 +635,38 @@
     </div>
 
     <div class="card">
+      <div class="card-head">
+        <h3><i class="fa-brands fa-google-drive"></i> Sinkronisasi Google Drive</h3>
+        <span class="pill" id="gdStatus">Tidak terhubung</span>
+      </div>
+      <div class="card-body">
+        <p class="hint"><i class="fa-solid fa-cloud"></i>
+          Data disimpan otomatis ke Google Drive akun yang login, pada jalur
+          <code>sdi-assuryaniyah/data-aplikasi-jurnal-absen/</code> (dibuat otomatis).
+          Setiap perubahan dikirim ke Drive, dan saat aplikasi dibuka data terbaru ditarik kembali —
+          sehingga bisa dilanjutkan dari perangkat lain dengan akun Google yang sama.</p>
+        <div class="btn-stack" style="margin-top:14px">
+          <button class="btn btn-primary" id="gdHubung"><i class="fa-brands fa-google"></i> Hubungkan Google Drive</button>
+          <button class="btn btn-ghost" id="gdTarik" disabled><i class="fa-solid fa-cloud-arrow-down"></i> Tarik dari Drive</button>
+          <button class="btn btn-ghost" id="gdKirim" disabled><i class="fa-solid fa-cloud-arrow-up"></i> Kirim ke Drive</button>
+          <button class="btn btn-danger-ghost" id="gdPutus" disabled><i class="fa-solid fa-link-slash"></i> Putuskan</button>
+        </div>
+        <div class="field" style="margin-top:16px">
+          <label for="gdCid">Client ID Google (diisi sekali oleh admin)</label>
+          <input type="text" id="gdCid" placeholder="xxxxxxxx.apps.googleusercontent.com">
+        </div>
+        <div class="form-actions" style="margin-top:12px; padding-top:12px">
+          <button class="btn btn-sm btn-ghost" id="gdSimpanCid"><i class="fa-solid fa-floppy-disk"></i> Simpan Client ID</button>
+        </div>
+        <p class="hint warn"><i class="fa-solid fa-screwdriver-wrench"></i>
+          <strong>Setup sekali oleh admin</strong> di console.cloud.google.com:
+          buat project &rarr; aktifkan <em>Google Drive API</em> &rarr; OAuth consent screen (External, publish)
+          &rarr; Credentials &rarr; <em>OAuth Client ID</em> tipe Web &rarr; tambahkan alamat github.io aplikasi ini pada
+          <em>Authorized JavaScript origins</em> &rarr; salin Client ID ke kotak di atas.</p>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-head"><h3><i class="fa-solid fa-database"></i> Data &amp; Cadangan</h3></div>
       <div class="card-body">
         <p class="hint"><i class="fa-solid fa-shield-halved"></i> Data tersimpan di <code>localStorage</code> browser ini saja. Unduh cadangan secara berkala.</p>
@@ -684,6 +716,7 @@
   </div>
 </div>
 
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="assets/js/vendor/xlsx.full.min.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
