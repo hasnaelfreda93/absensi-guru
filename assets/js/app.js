@@ -2324,7 +2324,10 @@ const Drive = {
           client_id: this.cid(),
           scope: this.SCOPE,
           callback: () => {},
-          error_callback: () => { this.render(); },
+          error_callback: err => {
+            if (!this._senyap) UI.toast(this._pesanError(err), 'err', 7000);
+            this.render();
+          },
         });
       } catch {
         UI.toast('Konfigurasi login Google tidak valid — periksa Client ID.', 'err', 5000);
@@ -2334,9 +2337,35 @@ const Drive = {
     return this.tokenClient;
   },
 
+  /** Terjemahkan kegagalan login GIS menjadi pesan yang bisa ditindaklanjuti. */
+  _pesanError(err) {
+    const tipe = (err && (err.type || err.error)) || '';
+    if (tipe === 'popup_failed_to_open') {
+      return 'Jendela login diblokir browser. Izinkan pop-up untuk situs ini (ikon di bilah alamat), lalu coba lagi.';
+    }
+    if (tipe === 'popup_closed') {
+      return 'Jendela login tertutup sebelum selesai. Coba lagi dan pilih akun Google.';
+    }
+    if (tipe === 'access_denied') {
+      return 'Izin akses Google Drive ditolak. Ulangi dan tekan Izinkan/Allow.';
+    }
+    return `Login Google gagal${tipe ? ` (${tipe})` : ''}. ` +
+           'Periksa: pop-up diizinkan, alamat situs terdaftar di Google Cloud, dan koneksi internet.';
+  },
+
   hubungkan(senyap) {
+    this._senyap = senyap;
+
+    // Login OAuth tidak mungkin dari berkas lokal (origin "null")
+    if (location.protocol === 'file:') {
+      UI.toast('Login Google tidak bisa dari berkas lokal — buka aplikasi lewat alamat https://…github.io.',
+        'err', 7000);
+      return;
+    }
+
     const tc = this._pastikanClient();
     if (!tc) return;
+    if (!senyap) UI.toast('Membuka jendela login Google…', 'info', 2500);
     tc.callback = async resp => {
       if (resp.error || !resp.access_token) {
         if (!senyap) UI.toast('Login Google gagal atau dibatalkan.', 'err');
