@@ -2340,11 +2340,10 @@ const Pengaturan = {
     perubahan lokal dikirim otomatis (debounce 4 detik).             */
 
 const Drive = {
-  // Diisi admin agar seluruh perangkat langsung siap tanpa mengetik ulang;
-  // dapat juga diganti per perangkat lewat kotak Client ID di Pengaturan.
-  CLIENT_ID_DEFAULT: '419141113676-v75rdp8imkh5imd4d2tfop6bj9oc9u8q.apps.googleusercontent.com',
+  // Identitas aplikasi di Google (OAuth Client ID) — diubah manual di sini
+  // bila suatu saat berganti project/akun Google Cloud.
+  CLIENT_ID: '419141113676-v75rdp8imkh5imd4d2tfop6bj9oc9u8q.apps.googleusercontent.com',
 
-  KEY_CID:  'as_gdrive_cid',
   KEY_ON:   'as_gdrive_on',
   KEY_FILE: 'as_gdrive_fileid',
   FOLDER_INDUK: 'sdi-assuryaniyah',
@@ -2362,10 +2361,7 @@ const Drive = {
   terhubung() { return !!this.token; },
   siapPustaka() { return typeof google !== 'undefined' && !!google.accounts?.oauth2; },
 
-  cid() {
-    try { return localStorage.getItem(this.KEY_CID) || this.CLIENT_ID_DEFAULT; }
-    catch { return this.CLIENT_ID_DEFAULT; }
-  },
+  cid() { return this.CLIENT_ID; },
 
   _ingat(key, val) {
     try { val === null ? localStorage.removeItem(key) : localStorage.setItem(key, val); }
@@ -2376,12 +2372,6 @@ const Drive = {
   },
 
   init() {
-    $('#gdCid').value = this.cid();
-    $('#gdSimpanCid').addEventListener('click', () => {
-      this._ingat(this.KEY_CID, $('#gdCid').value.trim() || null);
-      this.tokenClient = null;               // client dibangun ulang dengan ID baru
-      UI.toast('Client ID tersimpan di perangkat ini.', 'ok');
-    });
     $('#gdHubung').addEventListener('click', () => this.hubungkan(false));
     $('#gdPutus').addEventListener('click', () => this.putuskan());
     $('#gdTarik').addEventListener('click', async () => {
@@ -2424,7 +2414,7 @@ const Drive = {
       return null;
     }
     if (!this.cid()) {
-      UI.toast('Isi Client ID Google terlebih dahulu (lihat petunjuk di kartu Google Drive).', 'warn', 5500);
+      UI.toast('Client ID Google belum diatur pada aplikasi ini.', 'warn', 5000);
       return null;
     }
     if (!this.tokenClient) {

@@ -82,9 +82,9 @@ lintas perangkat:
 3. **Credentials → Create Credentials → OAuth Client ID** → tipe *Web application*
    → pada *Authorized JavaScript origins* tambahkan alamat aplikasi
    (`https://<username>.github.io`).
-4. Salin **Client ID** → tempel di Pengaturan → *Simpan Client ID* (sekali per
-   perangkat), atau isi konstanta `CLIENT_ID_DEFAULT` di `assets/js/app.js`
-   agar seluruh perangkat langsung siap.
+4. Salin **Client ID** → isi konstanta `Drive.CLIENT_ID` di `assets/js/app.js`
+   (sudah terisi untuk deployment saat ini; ganti hanya bila berpindah
+   project/akun Google Cloud).
 
 ## Struktur berkas
 
