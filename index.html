@@ -717,7 +717,9 @@
 </div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="assets/js/vendor/xlsx.full.min.js"></script>
+<!-- Pustaka Excel (xlsx.full.min.js, ±930 KB) TIDAK dimuat di sini —
+     app.js memuatnya sendiri saat ekspor/impor pertama kali dipakai,
+     agar pembukaan aplikasi di HP tetap ringan. -->
 <script src="assets/js/app.js"></script>
 </body>
 </html>

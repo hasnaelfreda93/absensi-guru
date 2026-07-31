@@ -114,11 +114,30 @@ function unduh(namaFile, isi, mime = 'text/plain;charset=utf-8') {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
+/** Pustaka Excel (930 KB) dimuat malas — hanya saat ekspor/impor pertama —
+    agar pembukaan aplikasi di HP tidak terbebani parse JS sebesar itu. */
+let _xlsxJanji = null;
+function muatXLSX() {
+  if (typeof XLSX !== 'undefined') return Promise.resolve();
+  if (!_xlsxJanji) {
+    _xlsxJanji = new Promise((selesai, gagal) => {
+      const s = document.createElement('script');
+      s.src = 'assets/js/vendor/xlsx.full.min.js';
+      s.onload = selesai;
+      s.onerror = () => { _xlsxJanji = null; gagal(new Error('xlsx gagal dimuat')); };
+      document.head.appendChild(s);
+    });
+  }
+  return _xlsxJanji;
+}
+
 /** Unduh laporan sebagai Excel (.xlsx): judul, header, data, lalu KESIMPULAN.
     opsi = { sheet, judul, kesimpulan: [[label, nilai], …] }                    */
-function unduhExcel(namaFile, header, baris, opsi = {}) {
-  if (typeof XLSX === 'undefined') {
-    UI.toast('Pustaka Excel belum termuat. Muat ulang halaman lalu coba lagi.', 'err', 5000);
+async function unduhExcel(namaFile, header, baris, opsi = {}) {
+  try {
+    await muatXLSX();
+  } catch {
+    UI.toast('Gagal memuat komponen Excel — periksa koneksi lalu coba lagi.', 'err', 5000);
     return;
   }
 
@@ -1486,8 +1505,9 @@ const Siswa = {
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
+        await muatXLSX();
         const wb = XLSX.read(reader.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
@@ -2408,12 +2428,17 @@ const Drive = {
       return null;
     }
     if (!this.tokenClient) {
-      this.tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: this.cid(),
-        scope: this.SCOPE,
-        callback: () => {},
-        error_callback: () => { this.render(); },
-      });
+      try {
+        this.tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: this.cid(),
+          scope: this.SCOPE,
+          callback: () => {},
+          error_callback: () => { this.render(); },
+        });
+      } catch {
+        UI.toast('Konfigurasi login Google tidak valid — periksa Client ID.', 'err', 5000);
+        return null;
+      }
     }
     return this.tokenClient;
   },
@@ -2722,23 +2747,29 @@ function renderSemua() {
 function init() {
   Store.muat();
 
-  UI.pasangRiak();
-  UI.jalankanJam();
-
-  Input.init();
-  Riwayat.init();
-  Kelas.init();
-  Siswa.init();
-  Rekap.init();
-  Jurnal.init();
-  JurnalRiwayat.init();
-  Pengaturan.init();
-  Drive.init();
-  Mode.init();
-  Router.init();
-
-  renderSemua();
-  UI.pasangReveal();
+  // Tiap langkah dibungkus try/catch: satu modul yang gagal (mis. di browser
+  // HP lama) tidak boleh mematikan navigasi dan seluruh tombol aplikasi.
+  const langkah = [
+    ['riak', () => UI.pasangRiak()],
+    ['jam', () => UI.jalankanJam()],
+    ['input', () => Input.init()],
+    ['riwayat', () => Riwayat.init()],
+    ['kelas', () => Kelas.init()],
+    ['siswa', () => Siswa.init()],
+    ['rekap', () => Rekap.init()],
+    ['jurnal', () => Jurnal.init()],
+    ['jurnalriwayat', () => JurnalRiwayat.init()],
+    ['pengaturan', () => Pengaturan.init()],
+    ['drive', () => Drive.init()],
+    ['mode', () => Mode.init()],
+    ['router', () => Router.init()],
+    ['render', () => renderSemua()],
+    ['reveal', () => UI.pasangReveal()],
+  ];
+  langkah.forEach(([nama, jalan]) => {
+    try { jalan(); }
+    catch (err) { console.error(`init ${nama} gagal:`, err); }
+  });
 
   if (!Store.kelas.length && !Store.siswa.length) {
     setTimeout(() => UI.toast(
