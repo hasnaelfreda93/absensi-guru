@@ -12,9 +12,39 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
-<link rel="stylesheet" href="assets/css/style.css?v=10">
+<link rel="stylesheet" href="assets/css/style.css?v=11">
+<!-- Pustaka login Google dimuat sedini mungkin: ia adalah gerbang aplikasi,
+     sehingga layar "Memeriksa sesi" tidak berputar lebih lama dari perlunya. -->
+<link rel="preconnect" href="https://accounts.google.com">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
+
+<!-- ===== GERBANG LOGIN GOOGLE (wajib sebelum aplikasi terbuka) ===== -->
+<div class="auth-overlay" id="authGate">
+  <div class="auth-box">
+    <img src="assets/img/logo.png" alt="Logo SDI Assuryaniyah">
+    <h2>SDI ASSURYANIYAH</h2>
+    <p>Absensi Siswa &amp; Jurnal Harian Guru</p>
+
+    <div class="auth-card">
+      <h3><i class="fa-solid fa-lock"></i> Masuk untuk melanjutkan</h3>
+      <p class="auth-desc">Aplikasi memakai akun Google Anda untuk menyimpan data ke Google Drive
+        pada jalur <code>sdi-assuryaniyah/data-aplikasi-jurnal-absen/</code>, sehingga pekerjaan
+        bisa dilanjutkan dari perangkat lain dengan akun yang sama.</p>
+
+      <button type="button" class="btn btn-primary auth-btn" id="authMasuk">
+        <i class="fa-brands fa-google"></i> Masuk dengan Google
+      </button>
+
+      <div class="auth-memuat" id="authMemuat" hidden>
+        <span class="auth-spin"></span><span id="authMemuatTeks">Memeriksa sesi Google…</span>
+      </div>
+
+      <p class="auth-pesan" id="authPesan" hidden></p>
+    </div>
+  </div>
+</div>
 
 <!-- ===== PEMILIH MENU (Absensi / Jurnal) ===== -->
 <div class="mode-overlay" id="modePicker" hidden>
@@ -69,7 +99,9 @@
       <li data-untuk="jurnal"><a href="#" class="nav-link" data-page="jurnal"><i class="fa-solid fa-book-open"></i> Isi Jurnal</a></li>
       <li data-untuk="jurnal"><a href="#" class="nav-link" data-page="jurnalriwayat"><i class="fa-solid fa-clock-rotate-left"></i> Riwayat Jurnal</a></li>
       <li><a href="#" class="nav-link" data-page="pengaturan"><i class="fa-solid fa-gear"></i> Pengaturan</a></li>
+      <li class="nav-akhir nav-akun" id="navAkun" hidden><i class="fa-solid fa-circle-user"></i> <span id="navAkunEmail"></span></li>
       <li class="nav-akhir"><a href="#" class="nav-link nav-ganti" id="btnGantiMode"><i class="fa-solid fa-shuffle"></i> Ganti Menu</a></li>
+      <li><a href="#" class="nav-link nav-keluar" id="btnKeluar"><i class="fa-solid fa-right-from-bracket"></i> Keluar</a></li>
     </ul>
   </div>
 </nav>
@@ -617,43 +649,20 @@
 <section class="page" id="page-pengaturan">
   <h2 class="section-title"><i class="fa-solid fa-gear"></i> Pengaturan</h2>
 
-  <div class="dash-cols">
-    <div class="card">
-      <div class="card-head"><h3><i class="fa-solid fa-calendar-week"></i> Hari Sekolah</h3></div>
-      <div class="card-body">
-        <p class="hint"><i class="fa-solid fa-circle-info"></i> Dipakai saat membuat data contoh dan sebagai penanda hari efektif.</p>
-        <form id="formSetting" autocomplete="off">
-          <div class="field" style="margin-top:15px">
-            <label>Hari Efektif</label>
-            <div class="chip-row" id="hariKerjaRow"></div>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <h3><i class="fa-brands fa-google-drive"></i> Sinkronisasi Google Drive</h3>
-        <span class="pill" id="gdStatus">Tidak terhubung</span>
-      </div>
-      <div class="card-body">
-        <p class="hint"><i class="fa-solid fa-cloud"></i>
-          Data disimpan otomatis ke Google Drive akun yang login, pada jalur
-          <code>sdi-assuryaniyah/data-aplikasi-jurnal-absen/</code> (dibuat otomatis).
-          Setiap perubahan dikirim ke Drive, dan saat aplikasi dibuka data terbaru ditarik kembali —
-          sehingga bisa dilanjutkan dari perangkat lain dengan akun Google yang sama.</p>
-        <div class="btn-stack" style="margin-top:14px">
-          <button class="btn btn-primary" id="gdHubung"><i class="fa-brands fa-google"></i> Hubungkan Google Drive</button>
-          <button class="btn btn-ghost" id="gdTarik" disabled><i class="fa-solid fa-cloud-arrow-down"></i> Tarik dari Drive</button>
-          <button class="btn btn-ghost" id="gdKirim" disabled><i class="fa-solid fa-cloud-arrow-up"></i> Kirim ke Drive</button>
-          <button class="btn btn-danger-ghost" id="gdPutus" disabled><i class="fa-solid fa-link-slash"></i> Putuskan</button>
+  <div class="card">
+    <div class="card-head"><h3><i class="fa-solid fa-calendar-week"></i> Hari Sekolah</h3></div>
+    <div class="card-body">
+      <p class="hint"><i class="fa-solid fa-circle-info"></i> Dipakai saat membuat data contoh dan sebagai penanda hari efektif.</p>
+      <form id="formSetting" autocomplete="off">
+        <div class="field" style="margin-top:15px">
+          <label>Hari Efektif</label>
+          <div class="chip-row" id="hariKerjaRow"></div>
         </div>
-      </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan</button>
+        </div>
+      </form>
     </div>
-
   </div>
 </section>
 
@@ -683,10 +692,9 @@
   </div>
 </div>
 
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Pustaka Excel (xlsx.full.min.js, ±930 KB) TIDAK dimuat di sini —
      app.js memuatnya sendiri saat ekspor/impor pertama kali dipakai,
      agar pembukaan aplikasi di HP tetap ringan. -->
-<script src="assets/js/app.js?v=10"></script>
+<script src="assets/js/app.js?v=11"></script>
 </body>
 </html>

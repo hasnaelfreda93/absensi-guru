@@ -1,6 +1,7 @@
 # Absensi & Jurnal — SDI Assuryaniyah
 
-Aplikasi web internal dengan **dua menu utama yang dipilih di awal** (dan bisa
+Aplikasi web internal yang **wajib login dengan akun Google** sebelum terbuka.
+Setelah masuk, tersedia **dua menu utama yang dipilih di awal** (dan bisa
 diganti kapan saja lewat tombol *Ganti Menu*):
 
 1. **Absensi Siswa** — guru mendata kelas dan nama siswa sekali, lalu setiap
@@ -10,8 +11,28 @@ diganti kapan saja lewat tombol *Ganti Menu*):
    jam, metode, materi, tujuan, jumlah hadir/tidak hadir, refleksi, kendala,
    dan tindak lanjut.
 
-Berjalan sepenuhnya di browser (*offline*), tanpa server dan tanpa login, siap
-dihosting di GitHub Pages.
+Berjalan sepenuhnya di browser tanpa server sendiri: seluruh pengolahan data
+terjadi di perangkat, dan penyimpanannya memakai Google Drive akun yang login.
+Siap dihosting di GitHub Pages.
+
+## Login Google (gerbang aplikasi)
+
+Halaman pertama yang muncul adalah **layar masuk** — header, menu, dan seluruh
+halaman baru tampil setelah login berhasil.
+
+- Tekan **Masuk dengan Google**, pilih akun, lalu izinkan akses Drive.
+- Login diingat: selama sesi Google di browser masih aktif, pembukaan
+  berikutnya masuk sendiri tanpa dialog (layar *Memeriksa sesi Google…*).
+- Akun yang sedang dipakai ditampilkan di bilah menu; tombol **Keluar**
+  ada di menu yang sama, bersebelahan dengan *Ganti Menu*.
+- **Keluar** mencabut izin dan mengunci aplikasi kembali ke layar masuk.
+  Data yang sudah dikirim ke Drive tetap aman dan kembali saat masuk lagi.
+- Bila sesi Google berakhir di tengah pemakaian, aplikasi terkunci lagi dan
+  meminta masuk ulang.
+
+> Login memerlukan alamat `http(s)://` — membuka `index.html` langsung dari
+> berkas (`file://`) ditolak Google, jadi pakai server lokal atau GitHub Pages
+> (lihat *Menjalankan lokal*).
 
 ## Halaman — menu Absensi
 
@@ -23,7 +44,7 @@ dihosting di GitHub Pages.
 | **Data Kelas** | Tambah, ubah, hapus kelas dan wali kelas. Jumlah siswa terhitung otomatis. |
 | **Data Siswa** | Tambah siswa satu per satu, atau **impor banyak sekaligus dari berkas Excel** — kolom Nama / NIS / L-P dikenali otomatis dari baris judul. Pencarian, ekspor Excel, dan template Excel. |
 | **Rekap** | Rekap per kelas dan **rekap per siswa** (diurutkan dari yang paling sering tidak masuk), ekspor Excel, cetak/PDF berkop sekolah, serta **Ekspor Absensi per Tanggal**: Excel satu baris per siswa dengan kolom tanggal 01–31 berisi H/S/I/A plus jumlah, persentase, dan baris kesimpulan. |
-| **Pengaturan** | Hari sekolah dan **Sinkronisasi Google Drive**. Tampil di kedua menu. |
+| **Pengaturan** | Hari sekolah (hari efektif). Tampil di kedua menu. |
 
 ## Halaman — menu Jurnal
 
@@ -56,29 +77,31 @@ Tekan **Unduh Template Excel** untuk mendapatkan berkas contoh.
 - **Jumlah siswa dicuplik saat penyimpanan**, sehingga rekap bulan lalu tidak berubah ketika daftar siswa diperbarui.
 - Seluruh laporan diekspor sebagai **Excel (.xlsx)** berjudul rapi dan diakhiri bagian **KESIMPULAN** (rata-rata kehadiran, total per status, siswa dengan absen ≥ 10%, dst.).
 - Data dikerjakan di `localStorage` browser dan **disinkronkan ke Google Drive** akun yang login (lihat bagian di bawah) — tidak ada server lain.
+- **Aplikasi terkunci sampai login berhasil**; data lokal perangkat tetap utuh setelah *Keluar* dan dipakai lagi saat masuk kembali.
 
 ## Sinkronisasi Google Drive
 
-Hubungkan dari **Pengaturan → Sinkronisasi Google Drive** — inilah penyimpanan
-utama & cadangan aplikasi:
+Berjalan otomatis begitu login berhasil — tidak ada lagi pengaturan yang perlu
+disentuh. Inilah penyimpanan utama sekaligus cadangan aplikasi:
 
-- Login Google → aplikasi otomatis membuat jalur
+- Aplikasi membuat jalur
   `sdi-assuryaniyah/data-aplikasi-jurnal-absen/data-aplikasi-jurnal-absen.json`
-  di Drive akun tersebut (scope `drive.file` — aplikasi hanya bisa menyentuh
+  di Drive akun yang login (scope `drive.file` — aplikasi hanya bisa menyentuh
   berkas buatannya sendiri, bukan seluruh isi Drive).
 - Setiap perubahan **menimpa berkas yang sama** (tidak menumpuk berkas baru),
   dikirim otomatis beberapa detik setelah perubahan.
 - Saat aplikasi dibuka, data dibandingkan berdasarkan cap waktu — **yang lebih
   baru dipakai** (Drive → perangkat, atau perangkat → Drive).
-- Login diingat: selama sesi Google di browser masih aktif, sambung ulang
-  berjalan otomatis tanpa dialog.
-- Tersedia tombol manual **Tarik dari Drive** / **Kirim ke Drive** / **Putuskan**.
+- Karena itu pekerjaan bisa dilanjutkan dari perangkat lain cukup dengan
+  masuk memakai akun Google yang sama.
 
 **Setup sekali oleh admin** (± 5 menit, gratis) di
 [console.cloud.google.com](https://console.cloud.google.com):
 
 1. Buat project baru → **Enable API** → aktifkan *Google Drive API*.
 2. **OAuth consent screen** → External → isi nama aplikasi → **Publish**.
+   Selama masih *Testing*, hanya akun yang terdaftar sebagai *Test users*
+   yang bisa masuk — dan tanpa bisa masuk, aplikasi tidak terbuka sama sekali.
 3. **Credentials → Create Credentials → OAuth Client ID** → tipe *Web application*
    → pada *Authorized JavaScript origins* tambahkan alamat aplikasi
    (`https://<username>.github.io`).
@@ -90,7 +113,7 @@ utama & cadangan aplikasi:
 
 ```
 .
-├── index.html              # Kerangka halaman (header, nav, 7 halaman, footer)
+├── index.html              # Gerbang login, header, nav, 8 halaman, footer
 ├── assets/
 │   ├── css/style.css       # Tema — warna & font mengikuti identitas sekolah
 │   ├── js/app.js           # Logika aplikasi, modul bernomor 1–13
@@ -105,17 +128,25 @@ utama & cadangan aplikasi:
 ```
 1. KONSTANTA   5. MODE & ROUTER   9.  HAL. DATA KELAS   11b. HAL. JURNAL
 2. UTIL        6. HAL. BERANDA    10. HAL. DATA SISWA   12.  HAL. PENGATURAN
-3. STORE       7. HAL. INPUT      11. HAL. REKAP        13.  INIT
-4. UI          8. HAL. RIWAYAT
+3. STORE       7. HAL. INPUT      11. HAL. REKAP        12b. LOGIN & DRIVE
+4. UI          8. HAL. RIWAYAT                          13.  INIT
 ```
+
+Gerbang login ada di modul **12b** (`Drive`): ia yang menahan aplikasi sebelum
+masuk, membuka kelas `masuk` pada `<body>` setelah berhasil, dan menangani
+tombol *Keluar* di bilah menu.
 
 ## Menjalankan lokal
 
-Cukup buka `index.html` di browser, atau:
+Harus lewat server (bukan klik ganda `index.html`), karena login Google menolak
+origin `file://`:
 
 ```bash
 python -m http.server 8000   # lalu buka http://localhost:8000
 ```
+
+Agar login berhasil, `http://localhost:8000` juga perlu terdaftar pada
+*Authorized JavaScript origins* di Google Cloud Console.
 
 ## Hosting ke GitHub Pages
 
@@ -134,14 +165,12 @@ maupun di subfolder repositori.
 
 ## Pemakaian pertama
 
-1. **Data Kelas** → masukkan seluruh kelas beserta wali kelasnya.
-2. **Data Siswa** → pilih kelas, lalu impor daftar nama dari berkas Excel.
-   Ingin mencoba dahulu? Tekan **Muat Data Contoh** di halaman Pengaturan.
-3. Setiap hari, **Input Absensi** → pilih kelas → klik S/I/A pada yang tidak masuk → **Simpan Absensi**.
-4. Akhir bulan, **Rekap** → **Ekspor Excel** atau **Cetak / PDF**.
-5. Pastikan **Google Drive terhubung** (Pengaturan) agar data tersimpan aman.
+1. **Masuk dengan Google** pada layar awal, lalu pilih menu (Absensi / Jurnal).
+2. **Data Kelas** → masukkan seluruh kelas beserta wali kelasnya.
+3. **Data Siswa** → pilih kelas, lalu impor daftar nama dari berkas Excel.
+4. Setiap hari, **Input Absensi** → pilih kelas → klik S/I/A pada yang tidak masuk → **Simpan Absensi**.
+5. Akhir bulan, **Rekap** → **Ekspor Excel** atau **Cetak / PDF**.
 
-> **Penting:** tanpa Google Drive, data hanya ada di browser perangkat itu —
-> membersihkan data situs akan menghilangkannya. Hubungkan Drive dan datanya
-> ikut tersimpan di `sdi-assuryaniyah/data-aplikasi-jurnal-absen/` pada akun
-> Google yang login.
+> **Penting:** pakailah akun Google yang sama di setiap perangkat — data
+> tersimpan di `sdi-assuryaniyah/data-aplikasi-jurnal-absen/` pada Drive akun
+> tersebut, dan itulah yang ditarik kembali saat masuk dari perangkat lain.

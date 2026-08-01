@@ -535,6 +535,12 @@ const Mode = {
   bukaPicker() {
     $('#modeTutup').hidden = !this.get();     // pertama kali: tidak bisa batal
     $('#modePicker').hidden = false;
+    this._perlu = false;
+  },
+
+  /** Pemilih menu pertama kali baru boleh tampil setelah login Google. */
+  mungkinPicker() {
+    if (this._perlu && !Drive.terkunci()) this.bukaPicker();
   },
 
   init() {
@@ -549,7 +555,8 @@ const Mode = {
 
     const m = this.get();
     this.terapkan(m || 'absen');
-    if (!m) this.bukaPicker();
+    this._perlu = !m;
+    this.mungkinPicker();
   },
 };
 
@@ -2229,9 +2236,14 @@ const Pengaturan = {
   },
 };
 
-/* ===== 12b. SINKRONISASI GOOGLE DRIVE ===================== */
+/* ===== 12b. LOGIN GOOGLE & SINKRONISASI DRIVE ============= */
 
-/*  Data JSON disimpan di Drive akun yang login, pada jalur
+/*  Login Google adalah gerbang aplikasi: sebelum berhasil masuk,
+    header, navigasi, dan seluruh halaman disembunyikan (body tanpa
+    kelas "masuk") dan hanya #authGate yang tampil. Keluar dari akun
+    dilakukan lewat menu samping (Keluar), bukan lagi dari Pengaturan.
+
+    Data JSON disimpan di Drive akun yang login, pada jalur
     sdi-assuryaniyah / data-aplikasi-jurnal-absen / data-aplikasi-jurnal-absen.json
     (folder dibuat otomatis bila belum ada, memakai scope drive.file
     sehingga aplikasi hanya bisa menyentuh berkas buatannya sendiri).
@@ -2256,6 +2268,7 @@ const Drive = {
   email: '',
   tokenClient: null,
   timerPush: null,
+  timerGerbang: null,
   sibuk: false,
 
   /* --- keadaan --- */
@@ -2273,49 +2286,102 @@ const Drive = {
   },
 
   init() {
-    $('#gdHubung').addEventListener('click', () => this.hubungkan(false));
-    $('#gdPutus').addEventListener('click', () => this.putuskan());
-    $('#gdTarik').addEventListener('click', async () => {
-      const ok = await UI.konfirmasi('Tarik dari Drive',
-        'Data di perangkat ini akan diganti dengan data dari Google Drive. Lanjutkan?', 'Ya, Tarik');
-      if (ok) this.tarik(true);
-    });
-    $('#gdKirim').addEventListener('click', () => this.kirim(true));
+    $('#authMasuk').addEventListener('click', () => this.hubungkan(false));
 
-    // Pernah terhubung → coba sambung ulang senyap saat aplikasi dibuka
+    $('#btnKeluar').addEventListener('click', async e => {
+      e.preventDefault();
+      $('#navMenu').classList.remove('open');
+      const ok = await UI.konfirmasi('Keluar dari Akun',
+        'Keluar dari akun Google? Aplikasi akan terkunci sampai Anda masuk kembali. ' +
+        'Data yang sudah dikirim ke Drive tetap aman.', 'Ya, Keluar');
+      if (ok) this.putuskan();
+    });
+
+    // Pernah masuk → coba sambung ulang tanpa dialog saat aplikasi dibuka.
+    // Belum pernah → langsung tampilkan tombol masuk pada gerbang.
     if (this._baca(this.KEY_ON) === '1') {
+      this.gerbang('cek');
       const coba = (sisa) => {
         if (this.siapPustaka()) { this.hubungkan(true); return; }
-        if (sisa > 0) setTimeout(() => coba(sisa - 1), 500);   // tunggu pustaka GIS
+        if (sisa > 0) { setTimeout(() => coba(sisa - 1), 500); return; }   // tunggu pustaka GIS
+        this.gerbang('masuk',
+          'Pustaka Google gagal dimuat — periksa koneksi internet, lalu muat ulang halaman.');
       };
-      setTimeout(() => coba(10), 500);
+      setTimeout(() => coba(20), 400);
+    } else {
+      this.gerbang('masuk');
     }
     this.render();
   },
 
-  render() {
-    const pill = $('#gdStatus');
-    if (this.terhubung()) {
-      pill.textContent = this.email ? `Terhubung • ${this.email}` : 'Terhubung';
-      pill.style.background = '#d1fae5';
-      pill.style.color = '#047857';
-    } else {
-      pill.textContent = 'Tidak terhubung';
-      pill.style.background = '';
-      pill.style.color = '';
+  /* --- gerbang login --- */
+
+  /** Aplikasi masih terkunci (belum berhasil masuk Google)? */
+  terkunci() { return !document.body.classList.contains('masuk'); },
+
+  /** keadaan: 'cek' | 'proses' | 'masuk' | 'buka'. */
+  gerbang(keadaan, pesan = '') {
+    const gate = $('#authGate');
+    if (!gate) return;
+    clearTimeout(this.timerGerbang);
+    if (keadaan === 'buka') { gate.hidden = true; return; }
+
+    gate.hidden = false;
+    const sibuk = keadaan === 'cek' || keadaan === 'proses';
+    $('#authMasuk').hidden = sibuk;
+    $('#authMemuat').hidden = !sibuk;
+    $('#authMemuatTeks').textContent = keadaan === 'cek'
+      ? 'Memeriksa sesi Google…'
+      : 'Menunggu jendela login Google…';
+    $('#authPesan').textContent = pesan;
+    $('#authPesan').hidden = !pesan;
+
+    // Jaring pengaman: bila Google tidak pernah menjawab, kembalikan tombol
+    // masuk agar pemakai tidak terjebak pada layar berputar.
+    if (sibuk) {
+      this.timerGerbang = setTimeout(() => {
+        if (this.terkunci()) {
+          this.gerbang('masuk', 'Tidak ada jawaban dari Google. Silakan coba masuk lagi.');
+        }
+      }, keadaan === 'cek' ? 12000 : 120000);
     }
-    $('#gdHubung').disabled = this.terhubung();
-    ['#gdTarik', '#gdKirim', '#gdPutus'].forEach(s => { $(s).disabled = !this.terhubung(); });
+  },
+
+  bukaAplikasi() {
+    if (!this.terkunci()) return;
+    document.body.classList.add('masuk');
+    this.gerbang('buka');
+    Mode.mungkinPicker();
+    sapaanAwal();
+  },
+
+  kunci(pesan) {
+    document.body.classList.remove('masuk');
+    $('#navMenu').classList.remove('open');
+    this.gerbang('masuk', pesan || '');
+  },
+
+  /** Pesan kegagalan: ke gerbang bila terkunci, ke toast bila sudah di dalam. */
+  _kabar(pesan) {
+    if (this.terkunci()) this.gerbang('masuk', pesan);
+    else UI.toast(pesan, 'err', 6000);
+  },
+
+  render() {
+    const akun = $('#navAkun');
+    if (!akun) return;
+    $('#navAkunEmail').textContent = this.email;
+    akun.hidden = !(this.terhubung() && this.email);
   },
 
   /* --- login --- */
   _pastikanClient() {
     if (!this.siapPustaka()) {
-      UI.toast('Pustaka Google belum termuat — pastikan ada koneksi internet, lalu muat ulang.', 'err', 5000);
+      this._kabar('Pustaka Google belum termuat — pastikan ada koneksi internet, lalu muat ulang.');
       return null;
     }
     if (!this.cid()) {
-      UI.toast('Client ID Google belum diatur pada aplikasi ini.', 'warn', 5000);
+      this._kabar('Client ID Google belum diatur pada aplikasi ini.');
       return null;
     }
     if (!this.tokenClient) {
@@ -2324,17 +2390,25 @@ const Drive = {
           client_id: this.cid(),
           scope: this.SCOPE,
           callback: () => {},
-          error_callback: err => {
-            if (!this._senyap) UI.toast(this._pesanError(err), 'err', 7000);
-            this.render();
-          },
+          error_callback: err => this._gagalLogin(err),
         });
       } catch {
-        UI.toast('Konfigurasi login Google tidak valid — periksa Client ID.', 'err', 5000);
+        this._kabar('Konfigurasi login Google tidak valid — periksa Client ID.');
         return null;
       }
     }
     return this.tokenClient;
+  },
+
+  /** Login gagal/ditutup. Percobaan senyap cukup mengembalikan tombol masuk. */
+  _gagalLogin(err) {
+    if (this._senyap) {
+      if (this._pakaiGerbang) this.gerbang('masuk');
+      this.render();
+      return;
+    }
+    this._kabar(this._pesanError(err));
+    this.render();
   },
 
   /** Terjemahkan kegagalan login GIS menjadi pesan yang bisa ditindaklanjuti. */
@@ -2353,35 +2427,48 @@ const Drive = {
            'Periksa: pop-up diizinkan, alamat situs terdaftar di Google Cloud, dan koneksi internet.';
   },
 
-  hubungkan(senyap) {
+  /**
+   * senyap      : tanpa dialog Google & tanpa pesan bila gagal
+   *               (dipakai untuk sambung ulang saat dibuka dan perpanjang token).
+   * pakaiGerbang: kegagalan/keberhasilan ikut mengubah tampilan gerbang login.
+   *               Dimatikan saat memperpanjang token agar pekerjaan yang
+   *               sedang berjalan tidak tiba-tiba tertutup layar login.
+   */
+  hubungkan(senyap, pakaiGerbang = true) {
     this._senyap = senyap;
+    this._pakaiGerbang = pakaiGerbang;
 
     // Login OAuth tidak mungkin dari berkas lokal (origin "null")
     if (location.protocol === 'file:') {
-      UI.toast('Login Google tidak bisa dari berkas lokal — buka aplikasi lewat alamat https://…github.io.',
-        'err', 7000);
+      this._kabar('Login Google tidak bisa dari berkas lokal — buka aplikasi lewat alamat https://…github.io.');
       return;
     }
 
     const tc = this._pastikanClient();
     if (!tc) return;
-    if (!senyap) UI.toast('Membuka jendela login Google…', 'info', 2500);
+    if (pakaiGerbang) this.gerbang(senyap ? 'cek' : 'proses');
+
     tc.callback = async resp => {
       if (resp.error || !resp.access_token) {
-        if (!senyap) UI.toast('Login Google gagal atau dibatalkan.', 'err');
-        this.render();
+        this._gagalLogin(resp);
         return;
       }
       this.token = resp.access_token;
       this._ingat(this.KEY_ON, '1');
-      // Token berlaku ±1 jam → perbarui senyap sebelum kedaluwarsa
-      setTimeout(() => { if (this.terhubung()) this.hubungkan(true); },
+      // Token berlaku ±1 jam → perbarui senyap sebelum kedaluwarsa,
+      // tanpa menyentuh gerbang karena aplikasi sedang dipakai.
+      setTimeout(() => { if (this.terhubung()) this.hubungkan(true, false); },
         Math.max(60, (Number(resp.expires_in) || 3600) - 120) * 1000);
+
+      if (pakaiGerbang) this.bukaAplikasi();
       await this._setelahLogin(senyap);
     };
-    // prompt '' : tanpa dialog bila izin sudah pernah diberikan & sesi Google aktif
-    try { tc.requestAccessToken({ prompt: '' }); }
-    catch { if (!senyap) UI.toast('Tidak dapat membuka jendela login Google.', 'err'); }
+
+    // 'none'  : benar-benar tanpa tampilan — dipakai untuk percobaan senyap,
+    //           gagal bila sesi Google habis sehingga tombol masuk muncul lagi.
+    // ''      : tanpa dialog bila izin sudah diberikan & sesi Google aktif.
+    try { tc.requestAccessToken({ prompt: senyap ? 'none' : '' }); }
+    catch { if (!senyap) this._kabar('Tidak dapat membuka jendela login Google.'); }
   },
 
   async _setelahLogin(senyap) {
@@ -2390,7 +2477,7 @@ const Drive = {
       this.render();
       await this.sinkron(senyap);
     } catch (err) {
-      if (!senyap) UI.toast(`Gagal menyiapkan Drive: ${err.message}`, 'err', 5000);
+      UI.toast(`Gagal menyiapkan Drive: ${err.message}`, 'err', 5000);
       this.render();
     }
   },
@@ -2399,12 +2486,13 @@ const Drive = {
     if (this.siapPustaka() && this.token) {
       try { google.accounts.oauth2.revoke(this.token, () => {}); } catch { /* abaikan */ }
     }
+    clearTimeout(this.timerPush);
     this.token = null;
     this.email = '';
     this._ingat(this.KEY_ON, null);
     this._ingat(this.KEY_FILE, null);
-    UI.toast('Google Drive diputuskan. Data lokal tetap ada.', 'info', 4200);
     this.render();
+    this.kunci('Anda sudah keluar dari akun Google. Masuk kembali untuk membuka aplikasi.');
   },
 
   /* --- panggilan API --- */
@@ -2416,7 +2504,8 @@ const Drive = {
     if (r.status === 401) {                 // token kedaluwarsa
       this.token = null;
       this.render();
-      throw new Error('sesi Google berakhir — hubungkan ulang');
+      this.kunci('Sesi Google berakhir. Masuk kembali untuk melanjutkan.');
+      throw new Error('sesi Google berakhir — masuk ulang');
     }
     if (!r.ok) throw new Error(`Drive HTTP ${r.status}`);
     return r;
@@ -2550,31 +2639,18 @@ const Drive = {
   /** Pengiriman otomatis setelah perubahan lokal (debounce 4 detik). */
   jadwalkanPush() {
     clearTimeout(this.timerPush);
-    this.timerPush = setTimeout(() => this.kirim(false), 4000);
+    this.timerPush = setTimeout(() => this.kirim(), 4000);
   },
 
-  async kirim(manual) {
+  /** Kirim keadaan terkini ke Drive. Gagal kirim tidak mengganggu pekerjaan;
+      perubahan berikutnya akan mencoba lagi. */
+  async kirim() {
     if (!this.terhubung()) return;
     try {
       const id = await this._pastikanBerkas();
       await this._unggah(id);
-      if (manual) UI.toast('Data dikirim ke Google Drive.', 'ok');
     } catch (err) {
-      if (manual) UI.toast(`Gagal mengirim: ${err.message}`, 'err', 5000);
-    }
-  },
-
-  async tarik(manual) {
-    if (!this.terhubung()) return;
-    try {
-      const id = await this._pastikanBerkas();
-      const r = await this._api(`/drive/v3/files/${id}?alt=media`);
-      const d = await r.json();
-      if (!d || !Array.isArray(d.kelas)) throw new Error('isi berkas tidak dikenali');
-      this._terapkan(d);
-      if (manual) UI.toast('Data dari Google Drive diterapkan.', 'ok');
-    } catch (err) {
-      if (manual) UI.toast(`Gagal menarik: ${err.message}`, 'err', 5000);
+      console.warn('Gagal mengirim ke Drive:', err.message);
     }
   },
 };
@@ -2690,12 +2766,14 @@ function init() {
     try { jalan(); }
     catch (err) { console.error(`init ${nama} gagal:`, err); }
   });
+}
 
-  if (!Store.kelas.length && !Store.siswa.length) {
-    setTimeout(() => UI.toast(
-      'Selamat datang! Hubungkan Google Drive di Pengaturan agar data tersimpan aman, lalu mulai dari Data Kelas dan Data Siswa.',
-      'info', 7000), 700);
-  }
+/** Sapaan untuk pemakai baru — dipanggil setelah gerbang login terlewati. */
+function sapaanAwal() {
+  if (Store.kelas.length || Store.siswa.length) return;
+  setTimeout(() => UI.toast(
+    'Selamat datang! Data tersimpan otomatis ke Google Drive akun Anda — ' +
+    'mulailah dari Data Kelas lalu Data Siswa.', 'info', 7000), 900);
 }
 
 document.addEventListener('DOMContentLoaded', init);
